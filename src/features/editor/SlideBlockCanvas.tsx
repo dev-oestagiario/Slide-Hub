@@ -20,7 +20,8 @@ export function SlideBlockCanvas({slide,layout,editable=false,arranging=false,on
   const area=useRef<HTMLDivElement>(null)
   const interaction=useRef<Interaction|null>(null)
   const [overflow,setOverflow]=useState(0)
-  const collisionCount=slideCollisions(slide,layout)
+  const [domCollisions,setDomCollisions]=useState(0)
+  const collisionCount=Math.max(slideCollisions(slide,layout),domCollisions)
   const hasOverrides=slide.blocks.some(block=>layout.overrides[block.id])
   const separated=arranging || hasOverrides
 
@@ -31,13 +32,24 @@ export function SlideBlockCanvas({slide,layout,editable=false,arranging=false,on
       const clipped=[...stage.querySelectorAll<HTMLElement>('.f4-pinned')].filter(node=>
         node.scrollHeight>node.clientHeight+3 || node.scrollWidth>node.clientWidth+3).length
       setOverflow(old=>old===clipped?old:clipped)
+      const rendered=[...stage.querySelectorAll<HTMLElement>('[data-slide-block]')]
+      let overlaps=0
+      for(let i=0;i<rendered.length;i++){
+        const a=rendered[i].getBoundingClientRect()
+        for(let j=i+1;j<rendered.length;j++){
+          const b=rendered[j].getBoundingClientRect()
+          if(Math.min(a.right,b.right)-Math.max(a.left,b.left)>3
+            &&Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top)>3)overlaps++
+        }
+      }
+      setDomCollisions(old=>old===overlaps?old:overlaps)
       onOverflow?.(clipped)
     }
     inspect()
     if(typeof ResizeObserver==='undefined')return
     const observer=new ResizeObserver(inspect)
     observer.observe(stage)
-    stage.querySelectorAll<HTMLElement>('.f4-pinned').forEach(node=>observer.observe(node))
+    stage.querySelectorAll<HTMLElement>('[data-slide-block]').forEach(node=>observer.observe(node))
     return ()=>observer.disconnect()
   },[slide,layout,arranging,onOverflow])
 
