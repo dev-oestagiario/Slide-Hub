@@ -20,7 +20,7 @@ type Props={
 }
 type Saved={lessonId:string;title:string;markdown:string;layout:EditorLayout;revision:number}
 type Snapshot={lessonId:string;title:string;markdown:string;layout:EditorLayout}
-const same=(a:Snapshot,b:Snapshot)=>a.lessonId===b.lessonId&&a.title===b.title&&
+const same=(a:Snapshot,b:Snapshot)=>a.lessonId===b.lessonId&&a.title.trim()===b.title.trim()&&
   a.markdown===b.markdown&&layoutsEqual(a.layout,b.layout)
 const cacheKey=(userId:string,lessonId:string)=>'slidehub:offline-draft:v1:'+userId+':'+lessonId
 
@@ -132,6 +132,11 @@ export function useLessonEditor({lesson,canEdit,autoBreak,userId,onPersist,onNot
         const snapshot=current.current
         if(!baseline||snapshot.lessonId!==target||baseline.lessonId!==target)return false
         if(same(snapshot,baseline)){setStatus('saved');return true}
+        if(!snapshot.title.trim()){
+          setStatus('error')
+          onNotify('O título da aula não pode ficar vazio.')
+          return false
+        }
         setStatus('saving')
         const {data,error}=await supabase.from('lessons').update({
           title:snapshot.title.trim()||lesson.title,markdown:snapshot.markdown,editor_layout:snapshot.layout

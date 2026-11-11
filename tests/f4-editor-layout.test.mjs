@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import {parseSlides} from '../src/lib/slideParser.ts'
 import {
   emptyLayout,reconcileEditorLayout,editorSlides,splitVisibleBlocks,setBlockRect,
-  resetBlockRect,normalizeEditorLayout,slideCollisions
+  resetBlockRect,normalizeEditorLayout,slideCollisions,layoutsEqual
 } from '../src/features/editor/layoutModel.ts'
 
 let counter=0
@@ -70,4 +70,33 @@ test('F4: collisions can be detected without moving pinned blocks',()=>{
 test('F4: malformed stored layout and IDs cannot inject geometry',()=>{
   const layout=normalizeEditorLayout({blocks:[{id:'bad',markdown:'a',slideIndex:0}],overrides:{bad:{x:1,y:1,w:1,h:1,z:0}}})
   assert.deepEqual(layout,emptyLayout())
+})
+
+test('F4: JSONB can reorder override keys without triggering endless autosave',()=>{
+  const first=reconcileEditorLayout(parseSlides('# Aula\n\nA\n\nB'),emptyLayout(),id)
+  const a=setBlockRect(first,first.blocks[1].id,{x:.1,y:.1,w:.3,h:.2,z:1})
+  const b=setBlockRect(a,first.blocks[2].id,{x:.5,y:.5,w:.3,h:.2,z:2})
+  const reordered={...b,overrides:Object.fromEntries(Object.entries(b.overrides).reverse())}
+  assert.equal(layoutsEqual(b,reordered),true)
+  assert.equal(layoutsEqual(b,a),false)
+})
+test('F4: new paragraph does not take a pinned position from different text',()=>{
+  const old=reconcileEditorLayout(parseSlides('# Aula\n\nA explicação original extensa'),emptyLayout(),id)
+  const pinned=old.blocks.find(block=>block.kind==='paragraph')
+  assert.ok(pinned)
+  const positioned=setBlockRect(old,pinned.id,{x:.5,y:.3,w:.4,h:.25,z:2})
+  const changed=reconcileEditorLayout(parseSlides('# Aula\n\nTexto completamente novo sem relação\n\nA explicação original extensa'),positioned,id)
+  const original=changed.blocks.find(block=>block.markdown==='A explicação original extensa')
+  const inserted=changed.blocks.find(block=>block.markdown==='Texto completamente novo sem relação')
+  assert.equal(original?.id,pinned.id)
+  assert.notEqual(inserted?.id,pinned.id)
+  assert.equal(changed.overrides[inserted.id],undefined)
+})
+test('F4: heading rename preserves position when it is the only unmatched heading',()=>{
+  const old=reconcileEditorLayout(parseSlides('# Título original\n\nDescrição'),emptyLayout(),id)
+  const heading=old.blocks.find(block=>block.kind==='heading')
+  assert.ok(heading)
+  const positioned=setBlockRect(old,heading.id,{x:.2,y:.1,w:.5,h:.2,z:1})
+  const updated=reconcileEditorLayout(parseSlides('# Título reformulado\n\nDescrição'),positioned,id)
+  assert.equal(updated.blocks.find(block=>block.kind==='heading')?.id,heading.id)
 })

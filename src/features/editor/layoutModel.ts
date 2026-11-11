@@ -165,7 +165,17 @@ export function resetBlockRect(layout:EditorLayout,id:string):EditorLayout{
   return {...layout,overrides}
 }
 export function layoutsEqual(a:EditorLayout,b:EditorLayout):boolean{
-  return JSON.stringify(a)===JSON.stringify(b)
+  if(a.blocks.length!==b.blocks.length)return false
+  for(let i=0;i<a.blocks.length;i++){
+    const x=a.blocks[i],y=b.blocks[i]
+    if(x.id!==y.id||x.kind!==y.kind||x.markdown!==y.markdown||x.slideIndex!==y.slideIndex)return false
+  }
+  const ak=Object.keys(a.overrides).sort(),bk=Object.keys(b.overrides).sort()
+  if(ak.length!==bk.length||ak.some((key,i)=>key!==bk[i]))return false
+  return ak.every(key=>{
+    const x=a.overrides[key],y=b.overrides[key]
+    return x.x===y.x&&x.y===y.y&&x.w===y.w&&x.h===y.h&&x.z===y.z
+  })
 }
 export function overflowing(rect:BlockRect):boolean{return rect.x+rect.w>1.001||rect.y+rect.h>1.001}
 export function intersecting(a:BlockRect,b:BlockRect):boolean{
