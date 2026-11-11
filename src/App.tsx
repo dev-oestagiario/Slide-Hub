@@ -13,6 +13,9 @@ import { AppTopbar } from './features/navigation/AppTopbar'
 import { Dashboard } from './features/dashboard/Dashboard'
 import { CourseOverview } from './features/courses/CourseOverview'
 import { LessonWorkspace } from './features/lessons/LessonWorkspace'
+import { TemplateLibrary } from './features/templates/TemplateLibrary'
+import { configFromSnapshot, layoutPresentation, normalizePresentationTemplate, presentationApplyPatch, themeOverrideSnapshot } from './features/templates/model'
+import type { PresentationTemplateConfig, PresentationTemplateRecord, TemplateChoice } from './features/templates/model'
 import type { Profile, Discipline, CourseModule as Module, Lesson, SlideTemplate, SpeakerNote as Note } from './features/courses/types'
 
 type Theme = { background: string; foreground: string; accent: string; fontFamily?: string }
@@ -27,6 +30,8 @@ export default function App(){
   const [user,setUser]=useState<{id:string;email?:string}|null>(null),[booting,setBooting]=useState(true),[authEmail,setAuthEmail]=useState(''),[authPass,setAuthPass]=useState(''),[signup,setSignup]=useState(false)
   const [profile,setProfile]=useState<Profile|null>(null),[disciplines,setDisciplines]=useState<Discipline[]>([]),[modules,setModules]=useState<Module[]>([]),[lessons,setLessons]=useState<Lesson[]>([]),[templates,setTemplates]=useState<SlideTemplate[]>([])
   const [disciplineId,setDisciplineId]=useState<string|null>(null),[moduleId,setModuleId]=useState<string|null>(null),[lessonId,setLessonId]=useState<string|null>(null)
+  const [presentationTemplates,setPresentationTemplates]=useState<PresentationTemplateRecord[]>([])
+  const [templateLibraryOpen,setTemplateLibraryOpen]=useState(false)
   const [markdown,setMarkdown]=useState(''),[title,setTitle]=useState(''),[mode,setMode]=useState<'edit'|'article'>('edit'),[presenting,setPresenting]=useState(false)
   const [create,setCreate]=useState<'discipline'|'module'|'lesson'|null>(null),[newTitle,setNewTitle]=useState(''),[newDesc,setNewDesc]=useState(''),[busy,setBusy]=useState(false),[message,setMessage]=useState('')
   const [themeConfig,setThemeConfig]=useState<SlideTheme>(DEFAULT_SLIDE_THEME),[themeStudioOpen,setThemeStudioOpen]=useState(false),[autoBreak,setAutoBreak]=useState(true),[notes,setNotes]=useState<Note[]>([]),[noteIndex,setNoteIndex]=useState(0),[noteText,setNoteText]=useState(''),[showSidebar,setShowSidebar]=useState(false)
@@ -36,19 +41,25 @@ export default function App(){
   const selectedDiscipline=disciplines.find(d=>d.id===disciplineId),selectedModule=modules.find(m=>m.id===moduleId),lesson=lessons.find(l=>l.id===lessonId)
   const course=disciplines.find(d=>d.id===modules.find(m=>m.id===lesson?.module_id)?.discipline_id)??selectedDiscipline
   const canWrite=profile?.role==='teacher'||profile?.role==='admin',canEdit=Boolean(canWrite && course?.owner_id===user?.id)
-  const slides=useMemo(()=>parseSlides(markdown,autoBreak),[markdown,autoBreak])
+  const parsedSlides=useMemo(()=>parseSlides(markdown,autoBreak),[markdown,autoBreak])
+  const activePresentation=useMemo(()=>configFromSnapshot(lesson?.presentation_template_snapshot),[lesson?.presentation_template_snapshot])
+  const slides=useMemo(()=>layoutPresentation(parsedSlides,activePresentation),[parsedSlides,activePresentation])
   const template=templates.find(t=>t.id===lesson?.template_id),colors=themeConfig
+  const ownedLessons=lessons.filter(item=>disciplines.some(discipline=>discipline.owner_id===user?.id
+    && modules.some(module=>module.id===item.module_id&&module.discipline_id===discipline.id)))
   const previewSlide=slides[Math.min(previewPage,slides.length-1)]
   const dirty=hasUnsavedChanges(lesson,{markdown,title})
   useEffect(()=>{if(!supabase){setBooting(false);return}supabase.auth.getUser().then(({data})=>{setUser(data.user);setBooting(false)}).catch(()=>setBooting(false));const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,session)=>setUser(session?.user??null));return ()=>subscription.unsubscribe()},[])
   async function refresh(){
     if(!supabase||!user)return
-    const [p,d,m,l,t]=await Promise.all([supabase.from('profiles').select('*').eq('id',user.id).maybeSingle(),supabase.from('disciplines').select('*').order('created_at',{ascending:false}),supabase.from('modules').select('*').order('position'),supabase.from('lessons').select('*').order('position'),supabase.from('slide_templates').select('*')])
+    const [p,d,m,l,t,pt]=await Promise.all([supabase.from('profiles').select('*').eq('id',user.id).maybeSingle(),supabase.from('disciplines').select('*').order('created_at',{ascending:false}),supabase.from('modules').select('*').order('position'),supabase.from('lessons').select('*').order('position'),supabase.from('slide_templates').select('*'),supabase.from('presentation_templates').select('*').eq('owner_id',user.id).order('updated_at',{ascending:false})])
     const error=[p.error,d.error,m.error,l.error,t.error].filter(Boolean).map(x=>x?.message).join(' / ')
     if(error)setMessage(error)
+    if(pt.error)setMessage('Biblioteca de templates indisponível. Aplique a migração F2 no Supabase: '+pt.error.message)
     setProfile(p.data as Profile|null);setDisciplines((d.data||[]) as Discipline[]);setModules((m.data||[]) as Module[]);setLessons((l.data||[]) as Lesson[]);setTemplates((t.data||[]) as SlideTemplate[])
+    setPresentationTemplates((pt.data||[]) as PresentationTemplateRecord[])
   }
-  useEffect(()=>{if(!user){setProfile(null);setDisciplines([]);setModules([]);setLessons([]);return}void refresh()},[user?.id])
+  useEffect(()=>{if(!user){setProfile(null);setDisciplines([]);setModules([]);setLessons([]);setPresentationTemplates([]);setTemplateLibraryOpen(false);return}void refresh()},[user?.id])
   useEffect(()=>{setMarkdown(lesson?.markdown||'');setTitle(lesson?.title||'');setMode('edit');setNoteIndex(0);setPreviewPage(0)},[lesson?.id])
   useEffect(()=>{const raw=lesson?.theme_config&&typeof lesson.theme_config==='object'&&Object.keys(lesson.theme_config).length?lesson.theme_config:template?.config;setThemeConfig(normalizeSlideTheme(raw))},[lesson?.id,lesson?.theme_config,template?.config])
   useEffect(()=>{if(!lessonId||!canEdit||!supabase){setNotes([]);return}let active=true;supabase.from('speaker_notes').select('*').eq('lesson_id',lessonId).then(({data})=>{if(active)setNotes((data||[]) as Note[])});return ()=>{active=false}},[lessonId,canEdit])
@@ -64,11 +75,12 @@ export default function App(){
   }
   function goHome(){
     if(!confirmDiscard())return
-    setDisciplineId(null);setModuleId(null);setLessonId(null);setShowSidebar(false)
+    setDisciplineId(null);setModuleId(null);setLessonId(null);setShowSidebar(false);setTemplateLibraryOpen(false)
   }
-  function openDiscipline(id:string){if(!confirmDiscard())return;setDisciplineId(id);setModuleId(null);setLessonId(null);setShowSidebar(false)}
-  function openModule(id:string){if(!confirmDiscard())return;setModuleId(id);setDisciplineId(modules.find(m=>m.id===id)?.discipline_id||null);setLessonId(null);setShowSidebar(false)}
-  function openLesson(l:Lesson){if(l.id!==lessonId&&!confirmDiscard())return;setLessonId(l.id);setModuleId(l.module_id);setDisciplineId(modules.find(m=>m.id===l.module_id)?.discipline_id||null);setShowSidebar(false)}
+  function openDiscipline(id:string){if(!confirmDiscard())return;setDisciplineId(id);setModuleId(null);setLessonId(null);setShowSidebar(false);setTemplateLibraryOpen(false)}
+  function openModule(id:string){if(!confirmDiscard())return;setModuleId(id);setDisciplineId(modules.find(m=>m.id===id)?.discipline_id||null);setLessonId(null);setShowSidebar(false);setTemplateLibraryOpen(false)}
+  function openLesson(l:Lesson){if(l.id!==lessonId&&!confirmDiscard())return;setLessonId(l.id);setModuleId(l.module_id);setDisciplineId(modules.find(m=>m.id===l.module_id)?.discipline_id||null);setShowSidebar(false);setTemplateLibraryOpen(false)}
+  function openTemplateLibrary(){if(!canWrite)return;setTemplateLibraryOpen(true);setShowSidebar(false)}
   async function handleAuth(e:FormEvent<HTMLFormElement>,signup:boolean){e.preventDefault();if(!supabase)return;setBusy(true);const {error}=signup?await supabase.auth.signUp({email:authEmail,password:authPass,options:{emailRedirectTo:window.location.origin+import.meta.env.BASE_URL}}):await supabase.auth.signInWithPassword({email:authEmail,password:authPass});setMessage(error?.message|| (signup?'Cadastro solicitado. Confirme seu e-mail, se necessário.':''));setBusy(false)}
   async function createEntity(e:FormEvent<HTMLFormElement>){
     e.preventDefault();if(!supabase||!user||!create||!canWrite||newTitle.trim().length<2)return
@@ -89,10 +101,12 @@ export default function App(){
   async function applyGlobalTheme(next:SlideTheme):Promise<boolean>{
     if(!supabase||!lesson||!canEdit)return false
     const config=normalizeSlideTheme(next)
-    const {data,error}=await supabase.from('lessons').update({theme_config:config,template_id:null})
+    const snapshot=themeOverrideSnapshot(lesson.presentation_template_snapshot,config)
+    const patch=snapshot?{theme_config:config,template_id:null,presentation_template_snapshot:snapshot}:{theme_config:config,template_id:null}
+    const {data,error}=await supabase.from('lessons').update(patch)
       .eq('id',lesson.id).select('id').single()
     if(error||!data){setMessage(error?.message||'Erro ao aplicar tema.');return false}
-    setLessons(list=>list.map(item=>item.id===lesson.id?{...item,theme_config:config,template_id:null}:item))
+    setLessons(list=>list.map(item=>item.id===lesson.id?{...item,...patch}:item))
     setThemeConfig(config);setMessage('Tema aplicado em toda a apresentação.')
     return true
   }
@@ -103,8 +117,60 @@ export default function App(){
     if(error||!data){setMessage(error?.message||'Não foi possível guardar o tema.');return false}
     setTemplates(previous=>[...previous,data as SlideTemplate]);return true
   }
+  async function createPresentationTemplate(name:string,description:string,config:PresentationTemplateConfig):Promise<PresentationTemplateRecord|null>{
+    if(!supabase||!user||!canWrite)return null
+    const {data,error}=await supabase.from('presentation_templates')
+      .insert({owner_id:user.id,name,description,config:normalizePresentationTemplate(config)})
+      .select('*').single()
+    if(error||!data){setMessage(error?.message||'Não foi possível criar o template.');return null}
+    const result=data as PresentationTemplateRecord
+    setPresentationTemplates(items=>[result,...items])
+    setMessage('Template salvo em Meus templates.')
+    return result
+  }
+  async function updatePresentationTemplate(id:string,revision:number,name:string,description:string,config:PresentationTemplateConfig):Promise<PresentationTemplateRecord|null>{
+    if(!supabase||!user||!canWrite)return null
+    const {data,error}=await supabase.from('presentation_templates')
+      .update({name,description,config:normalizePresentationTemplate(config)})
+      .eq('id',id).eq('owner_id',user.id).eq('revision',revision).select('*').maybeSingle()
+    if(error||!data){setMessage(error?.message||'Este template mudou em outra janela. Reabra para atualizar.');return null}
+    const result=data as PresentationTemplateRecord
+    setPresentationTemplates(items=>items.map(item=>item.id===id?result:item))
+    setMessage('Template atualizado. Aulas antigas mantêm o modelo aplicado.')
+    return result
+  }
+  async function duplicatePresentationTemplate(choice:TemplateChoice):Promise<PresentationTemplateRecord|null>{
+    return createPresentationTemplate((choice.name+' (cópia)').slice(0,100),choice.description,choice.config)
+  }
+  async function deletePresentationTemplate(record:PresentationTemplateRecord):Promise<boolean>{
+    if(!supabase||!user||!canWrite)return false
+    const {data,error}=await supabase.from('presentation_templates')
+      .delete().eq('id',record.id).eq('owner_id',user.id).select('id').maybeSingle()
+    if(error||!data){setMessage(error?.message||'Não foi possível excluir o template.');return false}
+    setPresentationTemplates(items=>items.filter(item=>item.id!==record.id))
+    setLessons(items=>items.map(item=>item.presentation_template_id===record.id
+      ?{...item,presentation_template_id:null}:item))
+    setMessage('Template excluído. As aulas conservaram o visual aplicado.')
+    return true
+  }
+  async function applyPresentationTemplate(choice:TemplateChoice,targetId:string):Promise<boolean>{
+    if(!supabase||!user||!canWrite)return false
+    const current=ownedLessons.find(item=>item.id===targetId)
+    if(!current){setMessage('Selecione uma aula sua para aplicar o template.');return false}
+    if(choice.kind==='personal'&&!presentationTemplates.some(item=>item.id===choice.id&&item.owner_id===user.id)){
+      setMessage('Você não tem acesso a este template.');return false
+    }
+    const patch=presentationApplyPatch(choice)
+    const {data,error}=await supabase.from('lessons').update(patch).eq('id',targetId).select('id').maybeSingle()
+    if(error||!data){setMessage(error?.message||'Não foi possível aplicar o template.');return false}
+    setLessons(items=>items.map(item=>item.id===targetId?{...item,...patch}:item))
+    if(targetId===lessonId)setThemeConfig(patch.theme_config)
+    setMessage('Template aplicado. Texto, notas e gabaritos foram preservados.')
+    setTemplateLibraryOpen(false)
+    return true
+  }
   async function uploadBackground(file:File):Promise<string>{
-    if(!supabase||!user||!canEdit)throw Error('Apenas professores podem enviar imagens.')
+    if(!supabase||!user||!canWrite)throw Error('Apenas professores podem enviar imagens.')
     const ext:Record<string,string>={'image/png':'png','image/jpeg':'jpg','image/webp':'webp'}
     if(!ext[file.type]||file.size===0||file.size>3*1024*1024)
       throw Error('Use JPG, PNG ou WebP com até 3 MB.')
@@ -146,6 +212,7 @@ export default function App(){
     <a href="#main-content" className="f1-skip-link">Pular para o conteúdo</a>
     <AppSidebar
       open={showSidebar} canWrite={canWrite} email={user.email} profile={profile}
+      templatesActive={templateLibraryOpen} onTemplates={openTemplateLibrary}
       disciplines={disciplines} modules={modules} lessons={lessons}
       disciplineId={disciplineId} moduleId={moduleId} lessonId={lessonId}
       onClose={()=>setShowSidebar(false)} onHome={goHome}
@@ -161,10 +228,17 @@ export default function App(){
         {message && <div className="notice" role="status">
           {message}<button aria-label="Fechar aviso" onClick={()=>setMessage('')}><X size={16}/></button>
         </div>}
-        {lesson ?
+        {templateLibraryOpen && !lesson && canWrite ?
+          <TemplateLibrary
+            records={presentationTemplates} lessons={ownedLessons} canWrite={canWrite}
+            onClose={goHome} onCreate={createPresentationTemplate} onUpdate={updatePresentationTemplate}
+            onDuplicate={duplicatePresentationTemplate} onDelete={deletePresentationTemplate}
+            onApply={applyPresentationTemplate} onUploadImage={uploadBackground} onNotify={setMessage}
+          /> :
+          lesson ?
           <LessonWorkspace
             lesson={lesson} title={title} markdown={markdown} mode={mode}
-            canEdit={canEdit} busy={busy} dirty={dirty} autoBreak={autoBreak}
+            canEdit={canEdit} busy={busy} dirty={dirty} autoBreak={autoBreak} activeTemplate={activePresentation}
             isDictating={dictating} theme={colors} slides={slides} previewPage={previewPage}
             noteIndex={noteIndex} noteText={noteText}
             onTitleChange={setTitle} onMarkdownChange={setMarkdown} onModeChange={setMode}
@@ -173,7 +247,7 @@ export default function App(){
             onNoteIndexChange={index=>{setNoteIndex(index);setPreviewPage(index)}}
             onNoteTextChange={setNoteText}
             onSave={()=>void save()} onPublish={()=>void publish()} onPresent={startPresentation}
-            onOpenThemeStudio={()=>setThemeStudioOpen(true)} onSaveNote={()=>void saveNote()}
+            onOpenThemeStudio={()=>setThemeStudioOpen(true)} onOpenTemplateLibrary={openTemplateLibrary} onSaveNote={()=>void saveNote()}
             onDictate={dictate} onImportTemplate={file=>void importTemplate(file)}
             onUploadContentImage={uploadBackground} onNotify={setMessage}
           /> :
@@ -188,17 +262,27 @@ export default function App(){
           <Dashboard canWrite={canWrite} disciplines={disciplines}
             modules={modules} lessons={lessons}
             onCreateDiscipline={()=>showCreate('discipline')}
-            onOpenDiscipline={openDiscipline} onOpenLesson={openLesson}
+            onOpenTemplates={openTemplateLibrary} onOpenDiscipline={openDiscipline} onOpenLesson={openLesson}
           />}
       </main>
     </div>
+    {templateLibraryOpen && lesson && canEdit && <div className="f2-overlay" role="dialog" aria-modal="true" aria-label="Biblioteca de templates">
+      <div className="f2-overlay-dialog"><TemplateLibrary
+        records={presentationTemplates} lessons={ownedLessons} currentLesson={lesson}
+        previewMarkdown={slides[Math.min(previewPage,slides.length-1)]?.markdown}
+        canWrite={canWrite} onClose={()=>setTemplateLibraryOpen(false)}
+        onCreate={createPresentationTemplate} onUpdate={updatePresentationTemplate}
+        onDuplicate={duplicatePresentationTemplate} onDelete={deletePresentationTemplate}
+        onApply={applyPresentationTemplate} onUploadImage={uploadBackground} onNotify={setMessage}
+      /></div>
+    </div>}
     {themeStudioOpen && lesson && canEdit &&
       <ThemeStudio initial={colors} previewMarkdown={previewSlide.markdown}
         savedThemes={templates} onClose={()=>setThemeStudioOpen(false)}
         onApply={applyGlobalTheme} onSavePreset={saveThemePreset}
         onUploadImage={uploadBackground}/>}
     {presenting && lesson &&
-      <Presentation slides={slides} title={title} theme={colors}
+      <Presentation slides={slides} title={title} theme={colors} template={activePresentation}
         notes={notes} canEdit={canEdit} onClose={closePresentation}/>}
     {create && <div className="modal-backdrop">
       <form className="modal" onSubmit={event=>void createEntity(event)}>
