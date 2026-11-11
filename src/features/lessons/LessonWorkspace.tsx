@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
-import { BookOpenText, CheckCircle2, ChevronLeft, ChevronRight, Code2, Columns3, FileText, ImagePlus, List, LayoutTemplate, Mic, Pause, Palette, Play, Plus, Quote, Save, Table2, Upload, Move, Undo2, Redo2, Download } from 'lucide-react'
+import { BookOpenText, CheckCircle2, ChevronLeft, ChevronRight, Code2, Columns3, FileText, ImagePlus, List, LayoutTemplate, Mic, Pause, Palette, Play, Plus, Quote, Save, Table2, Upload, Move, Undo2, Redo2, Download, Magnet, ZoomIn, ZoomOut } from 'lucide-react'
 import { MarkdownView } from '../../components/MarkdownView'
 import { articleMarkdown } from '../../lib/slideParser'
 import type { Slide } from '../../lib/slideParser'
@@ -11,6 +11,8 @@ import type { PresentationTemplateConfig } from '../templates/model'
 import { inferSlideKind, visualThemeForSlide } from '../templates/model'
 import { TemplateChrome } from '../templates/TemplateChrome'
 import { SlideBlockCanvas } from '../editor/SlideBlockCanvas'
+import type { CanvasSelection } from '../editor/SlideBlockCanvas'
+import { SlideInspector } from '../editor/SlideInspector'
 import type { BlockRect, EditorLayout, EditorSlide } from '../editor/layoutModel'
 import type { DraftStatus } from '../editor/useLessonEditor'
 
@@ -76,10 +78,18 @@ export function LessonWorkspace({
   const templateRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [arranging,setArranging] = useState(false)
-  useEffect(()=>setArranging(false),[lesson.id])
+  const [selection,setSelection]=useState<CanvasSelection|null>(null)
+  const [snap,setSnap]=useState(true)
+  const [zoom,setZoom]=useState(100)
+  const [mobilePane,setMobilePane]=useState<'write'|'preview'>('write')
+  useEffect(()=>{setArranging(false);setSelection(null);setMobilePane('write')},[lesson.id])
+  useEffect(()=>setSelection(null),[previewPage])
   const page = Math.min(previewPage, Math.max(0, slides.length - 1))
   const slide = slides[page]
   const slideModel = editorSlides[page]
+  const selectedBlock=slideModel?.blocks.find(block=>block.id===selection?.id)
+  const selectedRect=selection&&(selectedBlock
+    ?editorLayout.overrides[selection.id]??selection.rect:null)
 
   function insert(snippet: string) {
     if (!canEdit) return
@@ -160,7 +170,16 @@ export function LessonWorkspace({
       </div>
     </div>
 
-    {mode === 'edit' ? <div className="editor-grid f1-editor-grid">
+    {mode === 'edit' ? <>
+      <div className="f7-mobile-switch" role="group" aria-label="Painel de edição no celular">
+        <button type="button" aria-pressed={mobilePane==='write'}
+          className={mobilePane==='write'?'active':''}
+          onClick={()=>setMobilePane('write')}><FileText size={16}/> Escrever</button>
+        <button type="button" aria-pressed={mobilePane==='preview'}
+          className={mobilePane==='preview'?'active':''}
+          onClick={()=>setMobilePane('preview')}><Play size={16}/> Ver slides</button>
+      </div>
+      <div className={'editor-grid f1-editor-grid f7-editor-grid f7-mobile-'+mobilePane}>
       <section className="editor-card f1-writing-panel" aria-label="Conteúdo da aula">
         <header className="panel-title f1-panel-head">
           <div><span className="f1-panel-kicker">01 / CRIAR</span><h2>Seu conteúdo</h2></div>
@@ -211,7 +230,7 @@ export function LessonWorkspace({
         {canEdit && <div className="f4-layout-toolbar" role="toolbar" aria-label="Ajustes de posição">
           <button type="button" className={'f4-arrange-toggle '+(arranging?'active':'')}
             aria-pressed={arranging} disabled={!editorReady}
-            onClick={()=>setArranging(value=>!value)}>
+            onClick={()=>{setArranging(value=>!value);setSelection(null)}}>
             <Move size={16}/> {arranging?'Concluir ajustes':'Organizar visualmente'}
           </button>
           {arranging&&<>
@@ -220,28 +239,56 @@ export function LessonWorkspace({
             <button type="button" disabled={!canRedoGeometry} onClick={onRedoGeometry}
               title="Refazer último ajuste" aria-label="Refazer posição"><Redo2 size={16}/></button>
           </>}
-          <span className="f4-arrange-hint">{arranging?'Arraste ou use as setas do teclado para mover':'Posicionamento opcional'}</span>
+          {arranging&&<button type="button" className={'f7-snap-button '+(snap?'active':'')}
+            aria-pressed={snap} onClick={()=>setSnap(value=>!value)} title="Encaixar na grade">
+            <Magnet size={15}/> Grade {snap?'ativada':'livre'}
+          </button>}
+          <div className="f7-zoom-control" role="group" aria-label="Zoom da prévia">
+            <button type="button" aria-label="Diminuir zoom" disabled={zoom===75}
+              onClick={()=>setZoom(value=>Math.max(75,value-25))}><ZoomOut size={15}/></button>
+            <span>{zoom}%</span>
+            <button type="button" aria-label="Aumentar zoom" disabled={zoom===150}
+              onClick={()=>setZoom(value=>Math.min(150,value+25))}><ZoomIn size={15}/></button>
+          </div>
+          <span className="f4-arrange-hint">{arranging
+            ?'Selecione elementos e arraste, redimensione ou ajuste abaixo'
+            :'Organização automática ativa • ajustes visuais opcionais'}</span>
         </div>}
-        <div className="f1-preview-stage">
+        <div className="f1-preview-stage f7-preview-stage">
+          <div className="f7-preview-scroller">
           <div className={[
             'mini-slide','f3-lesson-preview','f3-layout-'+slide.layout,
             activeTemplate?'f3-density-'+activeTemplate.density:'',
             activeTemplate?.branding.showHeader?'f3-with-header':'',
             activeTemplate?.footer.text||activeTemplate?.footer.showPageNumber?'f3-with-footer':''
-          ].join(' ')} style={slideBackgroundStyle(themeForSlide(
+          ].join(' ')} style={{...slideBackgroundStyle(themeForSlide(
             visualThemeForSlide(activeTemplate,theme,inferSlideKind(slide,page)),slide.theme
-          ))}>
+          )),width:zoom+'%'}}>
             <div className="f3-preview-content f4-preview-shell">
               {slideModel && <SlideBlockCanvas
                 slide={slideModel} layout={editorLayout} editable={canEdit}
-                arranging={arranging}
+                arranging={arranging} snap={snap}
+                selection={selection} onSelect={setSelection}
                 onGeometry={onUpdateGeometry} onGestureStart={onGeometryStart}
                 onReset={onResetGeometry}/>}
             </div>
             {activeTemplate&&<TemplateChrome config={activeTemplate} index={page} total={slides.length}/>}
           </div>
-          <div className="f1-preview-caption"><span>SLIDE {String(page+1).padStart(2,'0')}</span><span>Gerado do seu texto</span></div>
+          </div>
+          <div className="f1-preview-caption"><span>SLIDE {String(page+1).padStart(2,'0')}</span>
+            <span>{'Organizado automaticamente · 16:9'}</span></div>
         </div>
+        {arranging&&canEdit&&<SlideInspector block={selectedBlock}
+          rect={selectedRect||undefined}
+          onChange={rect=>{
+            if(!selection)return
+            onGeometryStart()
+            onUpdateGeometry(selection.id,rect)
+          }}
+          onReset={()=>{
+            if(selection){onResetGeometry(selection.id);setSelection(null)}
+          }}
+          onClear={()=>setSelection(null)}/>}
         {canEdit && <details className="f1-notes-panel">
           <summary>Notas privadas do professor <ChevronRight size={17}/></summary>
           <div className="note-box f1-note-body">
@@ -256,7 +303,7 @@ export function LessonWorkspace({
           </div>
         </details>}
       </section>
-    </div> : <article className="article f1-article">
+    </div></> : <article className="article f1-article">
       <span className="eyebrow">APOSTILA DIGITAL</span><h1>{title}</h1>
       <MarkdownView markdown={articleMarkdown(markdown)}/>
     </article>}

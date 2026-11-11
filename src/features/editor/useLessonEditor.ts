@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
 import { supabase } from '../../lib/supabase'
 import { parseSlides } from '../../lib/slideParser'
+import { paginateSlides } from './autoOrganizer'
 import type { Lesson } from '../courses/types'
 import {
   emptyLayout, editorSlides, layoutsEqual, normalizeEditorLayout,
@@ -39,12 +40,12 @@ export function useLessonEditor({lesson,canEdit,autoBreak,userId,onPersist,onNot
   const history=useRef<EditorLayout[]>([])
   const redoHistory=useRef<EditorLayout[]>([])
 
-  const parsed=useMemo(()=>parseSlides(markdown,autoBreak),[markdown,autoBreak])
+  const parsed=useMemo(()=>paginateSlides(parseSlides(markdown,autoBreak)),[markdown,autoBreak])
   const slideModel=useMemo(()=>editorSlides(parsed,layout),[parsed,layout])
 
   useEffect(()=>{
     const state=normalizeEditorLayout(lesson?.editor_layout)
-    const originalSlides=lesson?parseSlides(lesson.markdown,autoBreak):[]
+    const originalSlides=lesson?paginateSlides(parseSlides(lesson.markdown,autoBreak)):[]
     const next=lesson?reconcileEditorLayout(originalSlides,state):emptyLayout()
     setOriginalSlideKeys(editorSlides(originalSlides,next).map(slide=>slide.key))
     const baseline:Saved|null=lesson?{lessonId:lesson.id,title:lesson.title,
@@ -71,7 +72,7 @@ export function useLessonEditor({lesson,canEdit,autoBreak,userId,onPersist,onNot
       if(window.confirm(notice)){
         setTitleState(cached.title)
         setMarkdownState(cached.markdown)
-        setLayout(reconcileEditorLayout(parseSlides(cached.markdown,autoBreak),cached.layout))
+        setLayout(reconcileEditorLayout(paginateSlides(parseSlides(cached.markdown,autoBreak)),cached.layout))
         setStatus('pending')
       } else localStorage.removeItem(cacheKey(userId,lesson.id))
     }catch{/* Browser storage is optional; editing still works */}
