@@ -1,9 +1,11 @@
-import { BookOpen, ChevronDown, FileText, GraduationCap, Layers3, LogOut, PanelLeftClose, Plus, X } from 'lucide-react'
+import { BookOpen, ChevronDown, FileText, GraduationCap, Layers3, LogOut, LayoutTemplate, PanelLeftClose, Plus, X } from 'lucide-react'
 import type { CourseModule, Discipline, Lesson, Profile } from '../courses/types'
 
 type Props = {
   open: boolean
   canWrite: boolean
+  templatesActive: boolean
+  onTemplates: () => void
   email: string | undefined
   profile: Profile | null
   disciplines: Discipline[]
@@ -22,7 +24,7 @@ type Props = {
 }
 
 export function AppSidebar({
-  open, canWrite, email, profile, disciplines, modules, lessons,
+  open, canWrite, templatesActive, onTemplates, email, profile, disciplines, modules, lessons,
   disciplineId, moduleId, lessonId, onClose, onHome, onCreateDiscipline,
   onDiscipline, onModule, onLesson, onSignOut
 }: Props) {
@@ -37,9 +39,13 @@ export function AppSidebar({
         <button className="icon-button mobile-only" onClick={onClose} aria-label="Fechar menu"><X size={19}/></button>
       </div>
       <nav aria-label="Áreas do sistema" className="f1-primary-nav">
-        <button className={'nav-home ' + (!disciplineId ? 'active' : '')} aria-current={!disciplineId ? 'page' : undefined} onClick={onHome}>
+        <button className={'nav-home ' + (!disciplineId && !templatesActive ? 'active' : '')} aria-current={!disciplineId && !templatesActive ? 'page' : undefined} onClick={onHome}>
           <BookOpen size={18}/> Visão geral
         </button>
+        {canWrite && <button className={'nav-home ' + (templatesActive ? 'active' : '')}
+          aria-current={templatesActive ? 'page' : undefined} onClick={onTemplates}>
+          <LayoutTemplate size={18}/> Templates
+        </button>}
       </nav>
       <div className="side-label">
         <span>MINHAS DISCIPLINAS</span>

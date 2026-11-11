@@ -1,4 +1,4 @@
-import { ArrowRight, BookOpen, FilePlus2, FileText, GraduationCap, Layers3, Play, Sparkles } from 'lucide-react'
+import { ArrowRight, BookOpen, FilePlus2, FileText, GraduationCap, Layers3, LayoutTemplate, Play, Sparkles } from 'lucide-react'
 import type { CourseModule, Discipline, Lesson } from '../courses/types'
 import { getDashboardStats, getRecentLessons } from '../courses/selectors'
 
@@ -8,11 +8,12 @@ type Props = {
   modules: CourseModule[]
   lessons: Lesson[]
   onCreateDiscipline: () => void
+  onOpenTemplates: () => void
   onOpenDiscipline: (id: string) => void
   onOpenLesson: (lesson: Lesson) => void
 }
 
-export function Dashboard({ canWrite, disciplines, modules, lessons, onCreateDiscipline, onOpenDiscipline, onOpenLesson }: Props) {
+export function Dashboard({ canWrite, disciplines, modules, lessons, onCreateDiscipline, onOpenTemplates, onOpenDiscipline, onOpenLesson }: Props) {
   const stats = getDashboardStats(disciplines, modules, lessons)
   const recent = getRecentLessons(lessons, modules, disciplines, 4)
   return <div className="f1-dashboard">
@@ -23,6 +24,7 @@ export function Dashboard({ canWrite, disciplines, modules, lessons, onCreateDis
         <p>{canWrite ? 'Escreva ou dite sua aula. O SlideHub organiza o conteúdo em slides, e você decide como apresentar.' : 'Acesse as disciplinas e aulas que seus professores disponibilizaram.'}</p>
         <div className="f1-welcome-actions">
           {canWrite && <button className="button primary" onClick={onCreateDiscipline}><FilePlus2 size={17}/> Nova disciplina</button>}
+          {canWrite && <button className="button secondary" onClick={onOpenTemplates}><LayoutTemplate size={16}/> Templates</button>}
           {recent[0] && <button className="button secondary" onClick={() => onOpenLesson(recent[0].lesson)}>
             <Play size={16}/> {canWrite ? 'Continuar aula' : 'Abrir aula'}
           </button>}

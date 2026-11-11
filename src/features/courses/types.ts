@@ -10,6 +10,8 @@ export type Lesson = {
   position: number
   template_id: string | null
   theme_config?: unknown
+  presentation_template_id?: string | null
+  presentation_template_snapshot?: unknown
   updated_at?: string
 }
 export type SlideTemplate = { id: string; owner_id: string; name: string; config: unknown }

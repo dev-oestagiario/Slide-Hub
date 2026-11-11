@@ -6,6 +6,7 @@ import { nextSlide, previousSlide } from '../lib/presentationNavigation'
 import { slideBackgroundStyle, themeForSlide } from '../lib/slideThemes'
 import type { SlideTheme } from '../lib/slideThemes'
 import type { Slide } from '../lib/slideParser'
+import type { PresentationTemplateConfig } from '../features/templates/model'
 
 export type PresentationTheme = SlideTheme
 
@@ -14,12 +15,13 @@ type PresentationProps = {
   slides: Slide[]
   title: string
   theme: PresentationTheme
+  template?: PresentationTemplateConfig | null
   notes: SpeakerNote[]
   canEdit: boolean
   onClose: () => void
 }
 
-export function Presentation({ slides, title, theme, notes, canEdit, onClose }: PresentationProps) {
+export function Presentation({ slides, title, theme, template, notes, canEdit, onClose }: PresentationProps) {
   const [index, setIndex] = useState(0)
   const [showSolution, setShowSolution] = useState(false)
   const [speakerMode, setSpeakerMode] = useState(false)
@@ -108,6 +110,10 @@ export function Presentation({ slides, title, theme, notes, canEdit, onClose }: 
               </button>
             </div>
           )}
+          {template && <div className="f2-presentation-footer">
+            <span>{template.footer.text}</span>
+            {template.footer.showPageNumber&&<span>{String(index+1).padStart(2,'0')} / {String(slides.length).padStart(2,'0')}</span>}
+          </div>}
         </section>
         {canEdit && speakerMode && (
           <aside className="speaker-panel">

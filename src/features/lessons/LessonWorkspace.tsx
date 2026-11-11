@@ -1,12 +1,13 @@
 import { useRef, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
-import { BookOpenText, CheckCircle2, ChevronLeft, ChevronRight, Code2, Columns3, FileText, ImagePlus, List, Mic, Pause, Palette, Play, Plus, Quote, Save, Table2, Upload } from 'lucide-react'
+import { BookOpenText, CheckCircle2, ChevronLeft, ChevronRight, Code2, Columns3, FileText, ImagePlus, List, LayoutTemplate, Mic, Pause, Palette, Play, Plus, Quote, Save, Table2, Upload } from 'lucide-react'
 import { MarkdownView } from '../../components/MarkdownView'
 import { articleMarkdown } from '../../lib/slideParser'
 import type { Slide } from '../../lib/slideParser'
 import { slideBackgroundStyle, themeForSlide } from '../../lib/slideThemes'
 import type { SlideTheme } from '../../lib/slideThemes'
 import type { Lesson } from '../courses/types'
+import type { PresentationTemplateConfig } from '../templates/model'
 
 type Mode = 'edit' | 'article'
 export type LessonWorkspaceProps = {
@@ -20,6 +21,7 @@ export type LessonWorkspaceProps = {
   autoBreak: boolean
   isDictating: boolean
   theme: SlideTheme
+  activeTemplate: PresentationTemplateConfig | null
   slides: Slide[]
   previewPage: number
   noteIndex: number
@@ -35,6 +37,7 @@ export type LessonWorkspaceProps = {
   onPublish: () => void
   onPresent: () => void
   onOpenThemeStudio: () => void
+  onOpenTemplateLibrary: () => void
   onSaveNote: () => void
   onDictate: () => void
   onImportTemplate: (file: File) => void
@@ -44,10 +47,10 @@ export type LessonWorkspaceProps = {
 
 export function LessonWorkspace({
   lesson, title, markdown, mode, canEdit, busy, dirty, autoBreak, isDictating,
-  theme, slides, previewPage, noteIndex, noteText,
+  theme, activeTemplate, slides, previewPage, noteIndex, noteText,
   onTitleChange, onMarkdownChange, onModeChange, onAutoBreakChange, onPreviewPageChange,
   onNoteIndexChange, onNoteTextChange, onSave, onPublish, onPresent,
-  onOpenThemeStudio, onSaveNote, onDictate, onImportTemplate, onUploadContentImage, onNotify
+  onOpenThemeStudio, onOpenTemplateLibrary, onSaveNote, onDictate, onImportTemplate, onUploadContentImage, onNotify
 }: LessonWorkspaceProps) {
   const editorRef = useRef<HTMLTextAreaElement>(null)
   const imageRef = useRef<HTMLInputElement>(null)
@@ -115,7 +118,8 @@ export function LessonWorkspace({
       <div className="f1-toolbar-utilities">
         <label className="check"><input type="checkbox" checked={autoBreak}
           onChange={event => onAutoBreakChange(event.target.checked)}/> Títulos iniciam slides</label>
-        {canEdit && <button className="button theme-launch" onClick={onOpenThemeStudio}><Palette size={16}/> Aparência</button>}
+        {canEdit && <button className="button theme-launch" onClick={onOpenTemplateLibrary}><LayoutTemplate size={16}/> Templates</button>}
+        {canEdit && <button className="button secondary" onClick={onOpenThemeStudio}><Palette size={16}/> Aparência</button>}
         {canEdit && <details className="advanced-template">
           <summary>Avançado</summary>
           <div><button className="button subtle" onClick={() => templateRef.current?.click()}><Upload size={15}/> Importar tema JSON</button></div>
@@ -177,8 +181,12 @@ export function LessonWorkspace({
           </div>
         </header>
         <div className="f1-preview-stage">
-          <div className="mini-slide" style={slideBackgroundStyle(themeForSlide(theme, slide.theme))}>
+          <div className={'mini-slide f2-preview-layout-'+slide.layout} style={slideBackgroundStyle(themeForSlide(theme, slide.theme))}>
             <MarkdownView markdown={slide.markdown}/>
+            {activeTemplate && <div className="f2-preview-lesson-footer">
+              <span>{activeTemplate.footer.text}</span>
+              {activeTemplate.footer.showPageNumber && <span>{String(page+1).padStart(2,'0')} / {String(slides.length).padStart(2,'0')}</span>}
+            </div>}
           </div>
           <div className="f1-preview-caption"><span>SLIDE {String(page+1).padStart(2,'0')}</span><span>Gerado do seu texto</span></div>
         </div>
