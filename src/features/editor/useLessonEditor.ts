@@ -31,6 +31,7 @@ export function useLessonEditor({lesson,canEdit,autoBreak,userId,onPersist,onNot
   const [saved,setSaved]=useState<Saved|null>(null)
   const [status,setStatus]=useState<DraftStatus>('saved')
   const [loadedFor,setLoadedFor]=useState('')
+  const [originalSlideKeys,setOriginalSlideKeys]=useState<string[]>([])
   const [historyNumber,setHistoryNumber]=useState(0)
   const current=useRef<Snapshot>({lessonId:'',title:'',markdown:'',layout:emptyLayout()})
   const savedRef=useRef<Saved|null>(null)
@@ -43,7 +44,9 @@ export function useLessonEditor({lesson,canEdit,autoBreak,userId,onPersist,onNot
 
   useEffect(()=>{
     const state=normalizeEditorLayout(lesson?.editor_layout)
-    const next=lesson?reconcileEditorLayout(parseSlides(lesson.markdown,autoBreak),state):emptyLayout()
+    const originalSlides=lesson?parseSlides(lesson.markdown,autoBreak):[]
+    const next=lesson?reconcileEditorLayout(originalSlides,state):emptyLayout()
+    setOriginalSlideKeys(editorSlides(originalSlides,next).map(slide=>slide.key))
     const baseline:Saved|null=lesson?{lessonId:lesson.id,title:lesson.title,
       markdown:lesson.markdown,layout:state,revision:lesson.editor_revision??0}:null
     savedRef.current=baseline
@@ -186,7 +189,7 @@ export function useLessonEditor({lesson,canEdit,autoBreak,userId,onPersist,onNot
   },[lesson?.id,loadedFor,canEdit,userId,dirty,title,markdown,layout,status])
 
   return {
-    title,markdown,layout,parsed,slideModel,dirty,status,ready:loadedFor===lesson?.id,
+    title,markdown,layout,parsed,slideModel,originalSlideKeys,dirty,status,ready:loadedFor===lesson?.id,
     setTitle,setMarkdown,updateGeometry,resetGeometry,checkpoint,undo,redo,canUndo,canRedo,
     save:flush
   }

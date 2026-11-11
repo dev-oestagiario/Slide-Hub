@@ -100,3 +100,13 @@ test('F4: heading rename preserves position when it is the only unmatched headin
   const updated=reconcileEditorLayout(parseSlides('# Título reformulado\n\nDescrição'),positioned,id)
   assert.equal(updated.blocks.find(block=>block.kind==='heading')?.id,heading.id)
 })
+
+test('F4: old positional notes remain linked to their original anchor after slide insertion',()=>{
+  const original=parseSlides('# Apresentação\n\nAbertura\n\n## Tópico\n\nTexto essencial')
+  const before=reconcileEditorLayout(original,emptyLayout(),id)
+  const legacyKey=editorSlides(original,before)[1].key
+  const expanded=parseSlides('# Apresentação\n\nAbertura\n\n## Novo tópico\n\nConteúdo novo\n\n## Tópico\n\nTexto essencial')
+  const after=reconcileEditorLayout(expanded,before,id)
+  assert.equal(editorSlides(expanded,after)[2].key,legacyKey)
+  assert.notEqual(editorSlides(expanded,after)[1].key,legacyKey)
+})

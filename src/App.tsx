@@ -70,17 +70,19 @@ export default function App(){
   useEffect(()=>{const raw=lesson?.theme_config&&typeof lesson.theme_config==='object'&&Object.keys(lesson.theme_config).length?lesson.theme_config:template?.config;setThemeConfig(normalizeSlideTheme(raw))},[lesson?.id,lesson?.theme_config,template?.config])
   useEffect(()=>{if(!lessonId||!canEdit||!supabase){setNotes([]);return}let active=true;supabase.from('speaker_notes').select('*').eq('lesson_id',lessonId).then(({data})=>{if(active)setNotes((data||[]) as Note[])});return ()=>{active=false}},[lessonId,canEdit])
   const noteSlideKey=slideModels[noteIndex]?.key
+  const legacyKeyForNote=(note:Note)=>editor.originalSlideKeys[note.slide_index]
+  const presenterNotes=notes.map(note=>note.slide_key?note:{...note,slide_key:legacyKeyForNote(note)||null})
   useEffect(()=>{
     const note=notes.find(n=>n.slide_key&&n.slide_key===noteSlideKey)
-      ??notes.find(n=>!n.slide_key&&n.slide_index===noteIndex)
+      ??notes.find(n=>!n.slide_key&&legacyKeyForNote(n)===noteSlideKey)
     setNoteText(note?.notes||'')
-  },[notes,noteIndex,noteSlideKey])
+  },[notes,noteIndex,noteSlideKey,editor.originalSlideKeys])
   const noteBackfill=useRef(new Set<string>())
   useEffect(()=>{noteBackfill.current.clear()},[lessonId])
   useEffect(()=>{
     if(!supabase||!lessonId||!canEdit||!editor.ready||dirty||saveStatus!=='saved')return
     for(const note of notes){
-      const stableKey=slideModels[note.slide_index]?.key
+      const stableKey=legacyKeyForNote(note)
       if(!note.id||note.slide_key||!stableKey||noteBackfill.current.has(note.id))continue
       noteBackfill.current.add(note.id)
       void supabase.from('speaker_notes').update({slide_key:stableKey})
@@ -89,7 +91,7 @@ export default function App(){
           if(data)setNotes(items=>items.map(item=>item.id===note.id?data as Note:item))
         })
     }
-  },[notes,slideModels,lessonId,canEdit,editor.ready,dirty,saveStatus])
+  },[notes,editor.originalSlideKeys,lessonId,canEdit,editor.ready,dirty,saveStatus])
   useEffect(()=>{
     if(!dirty)return
     const warn=(event:BeforeUnloadEvent)=>{event.preventDefault();event.returnValue=''}
@@ -135,7 +137,7 @@ export default function App(){
   async function saveNote(){
     if(!supabase||!lesson||!canEdit||!noteSlideKey)return
     const previous=notes.find(note=>note.slide_key===noteSlideKey)
-      ??notes.find(note=>!note.slide_key&&note.slide_index===noteIndex)
+      ??notes.find(note=>!note.slide_key&&legacyKeyForNote(note)===noteSlideKey)
     // Keep the old unique (lesson_id, slide_index) for running clients.
     // Existing keyed notes retain their historical index; new notes use a free
     // numeric slot if inserting a slide displaced an older note.
@@ -343,7 +345,7 @@ export default function App(){
     {presenting && lesson &&
       <Presentation slides={slides} title={title} theme={colors} template={activePresentation}
         editorLayout={editor.layout} editorSlides={slideModels}
-        notes={notes} canEdit={canEdit} onClose={closePresentation}/>}
+        notes={presenterNotes} canEdit={canEdit} onClose={closePresentation}/>}
     {create && <div className="modal-backdrop">
       <form className="modal" onSubmit={event=>void createEntity(event)}>
         <div className="modal-top">
