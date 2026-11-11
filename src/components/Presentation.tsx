@@ -3,14 +3,11 @@ import type { CSSProperties } from 'react'
 import { ChevronLeft, ChevronRight, Maximize2, Minimize2, X } from 'lucide-react'
 import { MarkdownView } from './MarkdownView'
 import { nextSlide, previousSlide } from '../lib/presentationNavigation'
+import { slideBackgroundStyle, themeForSlide } from '../lib/slideThemes'
+import type { SlideTheme } from '../lib/slideThemes'
 import type { Slide } from '../lib/slideParser'
 
-export type PresentationTheme = {
-  background: string
-  foreground: string
-  accent: string
-  fontFamily?: string
-}
+export type PresentationTheme = SlideTheme
 
 type SpeakerNote = { slide_index: number; notes: string }
 type PresentationProps = {
@@ -21,9 +18,6 @@ type PresentationProps = {
   canEdit: boolean
   onClose: () => void
 }
-
-const light: PresentationTheme = { background: '#FAFCFB', foreground: '#12544F', accent: '#1E7C74' }
-const dark: PresentationTheme = { background: '#12544F', foreground: '#F4F7F6', accent: '#7FE0D4' }
 
 export function Presentation({ slides, title, theme, notes, canEdit, onClose }: PresentationProps) {
   const [index, setIndex] = useState(0)
@@ -68,7 +62,7 @@ export function Presentation({ slides, title, theme, notes, canEdit, onClose }: 
 
   const slide = slides[index] ?? slides[0]
   if (!slide) return null
-  const colors = slide.theme === 'dark' ? dark : slide.theme === 'light' ? light : theme
+  const colors = themeForSlide(theme,slide.theme)
   const followingSlide = slides[index + 1]
 
   function advance(direction: 'previous' | 'next') {
@@ -90,7 +84,7 @@ export function Presentation({ slides, title, theme, notes, canEdit, onClose }: 
       role="dialog"
       aria-modal="true"
       aria-label={'Apresentação da aula: ' + title}
-      style={{ background: colors.background, color: colors.foreground, fontFamily: theme.fontFamily || 'inherit' }}
+      style={slideBackgroundStyle(colors)}
     >
       <header className="slide-header">
         <span>{title}</span>
