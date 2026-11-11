@@ -102,7 +102,7 @@
 /* Preview and projector share the template-chosen layout; Markdown stays canonical */
 .f2-preview-layout-center { text-align:center; }
 .f2-preview-layout-center > :not(.f2-preview-lesson-footer) { align-self:center; }
-.f2-preview-layout-split { columns:2; column-gap:20px; }
+.f2-preview-layout-split { display:block; columns:2; column-gap:20px; }
 .f2-preview-lesson-footer { margin-top:auto; display:flex; justify-content:space-between; align-items:center; gap:10px; font-size:9px; font-weight:700; opacity:.78; width:100%; }
 .f2-presentation-footer { margin-top:auto; padding:20px 0 0; display:flex; justify-content:space-between; gap:20px; font-size:clamp(12px,1vw,16px); font-weight:680; opacity:.78; }
 .f2-preview-layout-center .f2-preview-lesson-footer, .f2-preview-layout-split .f2-preview-lesson-footer { column-span:all; }

@@ -170,7 +170,7 @@ export default function App(){
     return true
   }
   async function uploadBackground(file:File):Promise<string>{
-    if(!supabase||!user||!canEdit)throw Error('Apenas professores podem enviar imagens.')
+    if(!supabase||!user||!canWrite)throw Error('Apenas professores podem enviar imagens.')
     const ext:Record<string,string>={'image/png':'png','image/jpeg':'jpg','image/webp':'webp'}
     if(!ext[file.type]||file.size===0||file.size>3*1024*1024)
       throw Error('Use JPG, PNG ou WebP com até 3 MB.')

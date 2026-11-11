@@ -30,3 +30,6 @@ Arquivo `supabase/migrations/20261111_presentation_templates.sql`, **não execut
 2. Executar migration aditiva no Supabase Dev com backup/testes de políticas; conferir advisors.
 3. Testar professor e aluno autenticados no site e criar/aplicar/duplicar/excluir.
 4. Liberar a funcionalidade para demais usuários após teste E2E.
+
+### Observação para uploads na biblioteca
+Envio de imagem de fundo fica disponível em **Meus templates** mesmo sem aula aberta. O controle é pelo papel de professor e pelas políticas do bucket Supabase (RLS), não pela aula atualmente selecionada.
