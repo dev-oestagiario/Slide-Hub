@@ -47,9 +47,8 @@
 }
 .f5-presenter-header button:hover,
 .f5-presenter-controls button:not(:disabled):hover{
-  background:currentColor;
+  background:rgba(127,127,127,.18);
   opacity:1;
-  filter:brightness(.97);
 }
 .f5-slide-outline{
   flex-shrink:0;
