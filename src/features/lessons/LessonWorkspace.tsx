@@ -1,6 +1,6 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
-import { BookOpenText, CheckCircle2, ChevronLeft, ChevronRight, Code2, Columns3, FileText, ImagePlus, List, LayoutTemplate, Mic, Pause, Palette, Play, Plus, Quote, Save, Table2, Upload } from 'lucide-react'
+import { BookOpenText, CheckCircle2, ChevronLeft, ChevronRight, Code2, Columns3, FileText, ImagePlus, List, LayoutTemplate, Mic, Pause, Palette, Play, Plus, Quote, Save, Table2, Upload, Move, Undo2, Redo2 } from 'lucide-react'
 import { MarkdownView } from '../../components/MarkdownView'
 import { articleMarkdown } from '../../lib/slideParser'
 import type { Slide } from '../../lib/slideParser'
@@ -10,6 +10,9 @@ import type { Lesson } from '../courses/types'
 import type { PresentationTemplateConfig } from '../templates/model'
 import { inferSlideKind, visualThemeForSlide } from '../templates/model'
 import { TemplateChrome } from '../templates/TemplateChrome'
+import { SlideBlockCanvas } from '../editor/SlideBlockCanvas'
+import type { BlockRect, EditorLayout, EditorSlide } from '../editor/layoutModel'
+import type { DraftStatus } from '../editor/useLessonEditor'
 
 type Mode = 'edit' | 'article'
 export type LessonWorkspaceProps = {
@@ -20,7 +23,18 @@ export type LessonWorkspaceProps = {
   canEdit: boolean
   busy: boolean
   dirty: boolean
+  saveStatus: DraftStatus
   autoBreak: boolean
+  editorReady: boolean
+  editorLayout: EditorLayout
+  editorSlides: EditorSlide[]
+  onUpdateGeometry: (id:string, rect:BlockRect)=>void
+  onResetGeometry: (id:string)=>void
+  onGeometryStart: ()=>void
+  onUndoGeometry: ()=>void
+  onRedoGeometry: ()=>void
+  canUndoGeometry: boolean
+  canRedoGeometry: boolean
   isDictating: boolean
   theme: SlideTheme
   activeTemplate: PresentationTemplateConfig | null
@@ -48,7 +62,9 @@ export type LessonWorkspaceProps = {
 }
 
 export function LessonWorkspace({
-  lesson, title, markdown, mode, canEdit, busy, dirty, autoBreak, isDictating,
+  lesson, title, markdown, mode, canEdit, busy, dirty, saveStatus, autoBreak, editorReady,
+  editorLayout, editorSlides, onUpdateGeometry, onResetGeometry, onGeometryStart,
+  onUndoGeometry, onRedoGeometry, canUndoGeometry, canRedoGeometry, isDictating,
   theme, activeTemplate, slides, previewPage, noteIndex, noteText,
   onTitleChange, onMarkdownChange, onModeChange, onAutoBreakChange, onPreviewPageChange,
   onNoteIndexChange, onNoteTextChange, onSave, onPublish, onPresent,
@@ -58,8 +74,11 @@ export function LessonWorkspace({
   const imageRef = useRef<HTMLInputElement>(null)
   const templateRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
+  const [arranging,setArranging] = useState(false)
+  useEffect(()=>setArranging(false),[lesson.id])
   const page = Math.min(previewPage, Math.max(0, slides.length - 1))
   const slide = slides[page]
+  const slideModel = editorSlides[page]
 
   function insert(snippet: string) {
     if (!canEdit) return
@@ -94,8 +113,10 @@ export function LessonWorkspace({
           onChange={event => onTitleChange(event.target.value)} aria-label="Título da aula"/>
         <p className="f1-editor-subtitle">{slides.length} {slides.length === 1 ? 'slide gerado' : 'slides gerados'} automaticamente
           <span aria-hidden="true"> · </span>
-          <span className={dirty ? 'f1-save-pending' : 'f1-save-ok'}>
-            {dirty ? 'Alterações não salvas' : 'Tudo salvo'}
+          <span className={saveStatus==='error' ? 'f4-save-error' : dirty ? 'f1-save-pending' : 'f1-save-ok'}
+            role="status" aria-live="polite">
+            {saveStatus==='error' ? 'Falha ao salvar — tente novamente' :
+              saveStatus==='saving' ? 'Salvando…' : dirty ? 'Salvamento automático pendente' : 'Tudo salvo'}
           </span>
         </p>
       </div>
@@ -182,6 +203,20 @@ export function LessonWorkspace({
               onClick={() => onPreviewPageChange(Math.min(slides.length-1,page+1))}><ChevronRight size={17}/></button>
           </div>
         </header>
+        {canEdit && <div className="f4-layout-toolbar" role="toolbar" aria-label="Ajustes de posição">
+          <button type="button" className={'f4-arrange-toggle '+(arranging?'active':'')}
+            aria-pressed={arranging} disabled={!editorReady}
+            onClick={()=>setArranging(value=>!value)}>
+            <Move size={16}/> {arranging?'Concluir ajustes':'Organizar visualmente'}
+          </button>
+          {arranging&&<>
+            <button type="button" disabled={!canUndoGeometry} onClick={onUndoGeometry}
+              title="Desfazer último ajuste" aria-label="Desfazer posição"><Undo2 size={16}/></button>
+            <button type="button" disabled={!canRedoGeometry} onClick={onRedoGeometry}
+              title="Refazer último ajuste" aria-label="Refazer posição"><Redo2 size={16}/></button>
+          </>}
+          <span className="f4-arrange-hint">{arranging?'Arraste ou use as setas do teclado para mover':'Posicionamento opcional'}</span>
+        </div>}
         <div className="f1-preview-stage">
           <div className={[
             'mini-slide','f3-lesson-preview','f3-layout-'+slide.layout,
@@ -191,7 +226,13 @@ export function LessonWorkspace({
           ].join(' ')} style={slideBackgroundStyle(themeForSlide(
             visualThemeForSlide(activeTemplate,theme,inferSlideKind(slide,page)),slide.theme
           ))}>
-            <div className="f3-preview-content"><MarkdownView markdown={slide.markdown}/></div>
+            <div className="f3-preview-content f4-preview-shell">
+              {slideModel && <SlideBlockCanvas
+                slide={slideModel} layout={editorLayout} editable={canEdit}
+                arranging={arranging}
+                onGeometry={onUpdateGeometry} onGestureStart={onGeometryStart}
+                onReset={onResetGeometry}/>}
+            </div>
             {activeTemplate&&<TemplateChrome config={activeTemplate} index={page} total={slides.length}/>}
           </div>
           <div className="f1-preview-caption"><span>SLIDE {String(page+1).padStart(2,'0')}</span><span>Gerado do seu texto</span></div>

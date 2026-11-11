@@ -2,8 +2,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { ChevronRight, GraduationCap, X } from 'lucide-react'
 import { supabase } from './lib/supabase'
-import { parseSlides } from './lib/slideParser'
-import { hasUnsavedChanges } from './lib/unsavedChanges'
 import { Presentation } from './components/Presentation'
 import { ThemeStudio } from './components/ThemeStudio'
 import { DEFAULT_SLIDE_THEME, normalizeSlideTheme } from './lib/slideThemes'
@@ -17,6 +15,8 @@ import { TemplateLibrary } from './features/templates/TemplateLibrary'
 import { configFromSnapshot, layoutPresentation, normalizePresentationTemplate, presentationApplyPatch, themeOverrideSnapshot } from './features/templates/model'
 import type { PresentationTemplateConfig, PresentationTemplateRecord, TemplateChoice } from './features/templates/model'
 import type { Profile, Discipline, CourseModule as Module, Lesson, SlideTemplate, SpeakerNote as Note } from './features/courses/types'
+import { useLessonEditor } from './features/editor/useLessonEditor'
+import { editorSlides } from './features/editor/layoutModel'
 
 type Theme = { background: string; foreground: string; accent: string; fontFamily?: string }
 
@@ -32,7 +32,7 @@ export default function App(){
   const [disciplineId,setDisciplineId]=useState<string|null>(null),[moduleId,setModuleId]=useState<string|null>(null),[lessonId,setLessonId]=useState<string|null>(null)
   const [presentationTemplates,setPresentationTemplates]=useState<PresentationTemplateRecord[]>([])
   const [templateLibraryOpen,setTemplateLibraryOpen]=useState(false)
-  const [markdown,setMarkdown]=useState(''),[title,setTitle]=useState(''),[mode,setMode]=useState<'edit'|'article'>('edit'),[presenting,setPresenting]=useState(false)
+  const [mode,setMode]=useState<'edit'|'article'>('edit'),[presenting,setPresenting]=useState(false)
   const [create,setCreate]=useState<'discipline'|'module'|'lesson'|null>(null),[newTitle,setNewTitle]=useState(''),[newDesc,setNewDesc]=useState(''),[busy,setBusy]=useState(false),[message,setMessage]=useState('')
   const [themeConfig,setThemeConfig]=useState<SlideTheme>(DEFAULT_SLIDE_THEME),[themeStudioOpen,setThemeStudioOpen]=useState(false),[autoBreak,setAutoBreak]=useState(true),[notes,setNotes]=useState<Note[]>([]),[noteIndex,setNoteIndex]=useState(0),[noteText,setNoteText]=useState(''),[showSidebar,setShowSidebar]=useState(false)
   const [previewPage,setPreviewPage] = useState(0)
@@ -41,14 +41,20 @@ export default function App(){
   const selectedDiscipline=disciplines.find(d=>d.id===disciplineId),selectedModule=modules.find(m=>m.id===moduleId),lesson=lessons.find(l=>l.id===lessonId)
   const course=disciplines.find(d=>d.id===modules.find(m=>m.id===lesson?.module_id)?.discipline_id)??selectedDiscipline
   const canWrite=profile?.role==='teacher'||profile?.role==='admin',canEdit=Boolean(canWrite && course?.owner_id===user?.id)
-  const parsedSlides=useMemo(()=>parseSlides(markdown,autoBreak),[markdown,autoBreak])
+  const editor=useLessonEditor({
+    lesson,canEdit,autoBreak,userId:user?.id,
+    onPersist:row=>setLessons(items=>items.map(item=>item.id===row.id?row:item)),
+    onNotify:setMessage
+  })
+  const {markdown,title,dirty,status:saveStatus,setMarkdown,setTitle}=editor
+  const parsedSlides=editor.parsed
   const activePresentation=useMemo(()=>configFromSnapshot(lesson?.presentation_template_snapshot),[lesson?.presentation_template_snapshot])
   const slides=useMemo(()=>layoutPresentation(parsedSlides,activePresentation),[parsedSlides,activePresentation])
+  const slideModels=useMemo(()=>editorSlides(slides,editor.layout),[slides,editor.layout])
   const template=templates.find(t=>t.id===lesson?.template_id),colors=themeConfig
   const ownedLessons=lessons.filter(item=>disciplines.some(discipline=>discipline.owner_id===user?.id
     && modules.some(module=>module.id===item.module_id&&module.discipline_id===discipline.id)))
   const previewSlide=slides[Math.min(previewPage,slides.length-1)]
-  const dirty=hasUnsavedChanges(lesson,{markdown,title})
   useEffect(()=>{if(!supabase){setBooting(false);return}supabase.auth.getUser().then(({data})=>{setUser(data.user);setBooting(false)}).catch(()=>setBooting(false));const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,session)=>setUser(session?.user??null));return ()=>subscription.unsubscribe()},[])
   async function refresh(){
     if(!supabase||!user)return
@@ -60,10 +66,32 @@ export default function App(){
     setPresentationTemplates((pt.data||[]) as PresentationTemplateRecord[])
   }
   useEffect(()=>{if(!user){setProfile(null);setDisciplines([]);setModules([]);setLessons([]);setPresentationTemplates([]);setTemplateLibraryOpen(false);return}void refresh()},[user?.id])
-  useEffect(()=>{setMarkdown(lesson?.markdown||'');setTitle(lesson?.title||'');setMode('edit');setNoteIndex(0);setPreviewPage(0)},[lesson?.id])
+  useEffect(()=>{setMode('edit');setNoteIndex(0);setPreviewPage(0)},[lesson?.id])
   useEffect(()=>{const raw=lesson?.theme_config&&typeof lesson.theme_config==='object'&&Object.keys(lesson.theme_config).length?lesson.theme_config:template?.config;setThemeConfig(normalizeSlideTheme(raw))},[lesson?.id,lesson?.theme_config,template?.config])
   useEffect(()=>{if(!lessonId||!canEdit||!supabase){setNotes([]);return}let active=true;supabase.from('speaker_notes').select('*').eq('lesson_id',lessonId).then(({data})=>{if(active)setNotes((data||[]) as Note[])});return ()=>{active=false}},[lessonId,canEdit])
-  useEffect(()=>setNoteText(notes.find(n=>n.slide_index===noteIndex)?.notes||''),[notes,noteIndex])
+  const noteSlideKey=slideModels[noteIndex]?.key
+  const legacyKeyForNote=(note:Note)=>editor.originalSlideKeys[note.slide_index]
+  const presenterNotes=notes.map(note=>note.slide_key?note:{...note,slide_key:legacyKeyForNote(note)||null})
+  useEffect(()=>{
+    const note=notes.find(n=>n.slide_key&&n.slide_key===noteSlideKey)
+      ??notes.find(n=>!n.slide_key&&legacyKeyForNote(n)===noteSlideKey)
+    setNoteText(note?.notes||'')
+  },[notes,noteIndex,noteSlideKey,editor.originalSlideKeys])
+  const noteBackfill=useRef(new Set<string>())
+  useEffect(()=>{noteBackfill.current.clear()},[lessonId])
+  useEffect(()=>{
+    if(!supabase||!lessonId||!canEdit||!editor.ready||dirty||saveStatus!=='saved')return
+    for(const note of notes){
+      const stableKey=legacyKeyForNote(note)
+      if(!note.id||note.slide_key||!stableKey||noteBackfill.current.has(note.id))continue
+      noteBackfill.current.add(note.id)
+      void supabase.from('speaker_notes').update({slide_key:stableKey})
+        .eq('id',note.id).is('slide_key',null).select('*').maybeSingle().then(({data,error})=>{
+          if(error)noteBackfill.current.delete(note.id!)
+          if(data)setNotes(items=>items.map(item=>item.id===note.id?data as Note:item))
+        })
+    }
+  },[notes,editor.originalSlideKeys,lessonId,canEdit,editor.ready,dirty,saveStatus])
   useEffect(()=>{
     if(!dirty)return
     const warn=(event:BeforeUnloadEvent)=>{event.preventDefault();event.returnValue=''}
@@ -93,10 +121,38 @@ export default function App(){
     else if(result?.data){if(create==='discipline'){setDisciplineId(result.data.id);setModuleId(null);setLessonId(null)}if(create==='module'){setModuleId(result.data.id);setLessonId(null)}if(create==='lesson')setLessonId(result.data.id);setCreate(null);await refresh()}
     setBusy(false)
   }
-  async function save(){if(!supabase||!lesson||!canEdit)return;setBusy(true);const {error}=await supabase.from('lessons').update({title:title.trim(),markdown}).eq('id',lesson.id);setMessage(error?.message||'Aula salva.');await refresh();setBusy(false)}
-  async function publish(){if(!supabase||!lesson||!canEdit)return;const status=lesson.status==='published'?'draft':'published';const {error}=await supabase.from('lessons').update({title:title.trim(),markdown,status}).eq('id',lesson.id);setMessage(error?.message||'Publicação atualizada.');await refresh()}
+  async function save(){if(!canEdit)return;const done=await editor.save();if(done)setMessage('Aula salva.')}
+  
+  async function publish(){
+    if(!supabase||!lesson||!canEdit)return
+    const persisted=await editor.save()
+    if(!persisted){setMessage('Salve a aula antes de alterar sua publicação.');return}
+    const status=lesson.status==='published'?'draft':'published'
+    const {data,error}=await supabase.from('lessons').update({status}).eq('id',lesson.id).select('*').maybeSingle()
+    if(error||!data){setMessage(error?.message||'Falha ao alterar a publicação.');return}
+    setLessons(items=>items.map(item=>item.id===lesson.id?data as Lesson:item))
+    setMessage('Publicação atualizada.')
+  }
   async function share(){if(!supabase||!selectedDiscipline||!canEdit)return;const {error}=await supabase.from('disciplines').update({is_public:!selectedDiscipline.is_public}).eq('id',selectedDiscipline.id);if(error)setMessage(error.message);else await refresh()}
-  async function saveNote(){if(!supabase||!lesson||!canEdit)return;const {error}=await supabase.from('speaker_notes').upsert({lesson_id:lesson.id,slide_index:noteIndex,notes:noteText},{onConflict:'lesson_id,slide_index'});setMessage(error?.message||'Nota salva.');if(!error)setNotes(v=>[...v.filter(n=>n.slide_index!==noteIndex),{lesson_id:lesson.id,slide_index:noteIndex,notes:noteText}])}
+  async function saveNote(){
+    if(!supabase||!lesson||!canEdit||!noteSlideKey)return
+    const previous=notes.find(note=>note.slide_key===noteSlideKey)
+      ??notes.find(note=>!note.slide_key&&legacyKeyForNote(note)===noteSlideKey)
+    // Keep the old unique (lesson_id, slide_index) for running clients.
+    // Existing keyed notes retain their historical index; new notes use a free
+    // numeric slot if inserting a slide displaced an older note.
+    const taken=new Set(notes.map(note=>note.slide_index))
+    const storageIndex=previous?.slide_index
+      ??(taken.has(noteIndex)?Math.max(-1,...taken)+1:noteIndex)
+    const payload={lesson_id:lesson.id,slide_index:storageIndex,slide_key:noteSlideKey,notes:noteText}
+    const query=previous?.id
+      ?supabase.from('speaker_notes').update(payload).eq('id',previous.id).select('*').maybeSingle()
+      :supabase.from('speaker_notes').insert(payload).select('*').maybeSingle()
+    const {data,error}=await query
+    if(error||!data){setMessage(error?.message||'Não foi possível salvar a nota.');return}
+    setNotes(items=>[...items.filter(item=>item.id!==previous?.id&&item.slide_key!==noteSlideKey),data as Note])
+    setMessage('Nota salva e vinculada ao slide.')
+  }
   async function importTemplate(file:File){if(!supabase||!user||!canWrite)return;try{if(file.size>100000)throw Error('Arquivo muito grande (máximo 100 KB).');const raw=JSON.parse(await file.text()) as Record<string,unknown>;const config=raw.config||raw;if(!isTheme(config))throw Error('JSON inválido. Use cores hex em background, foreground e accent.');const name=String(raw.name||file.name.replace(/\.json$/i,''));const {error}=await supabase.from('slide_templates').insert({owner_id:user.id,name:name.slice(0,100),config:normalizeSlideTheme(config)});if(error)throw error;await refresh();setMessage('Template importado.')}catch(e){setMessage(e instanceof Error?e.message:'Não foi possível importar.')}} 
   async function applyGlobalTheme(next:SlideTheme):Promise<boolean>{
     if(!supabase||!lesson||!canEdit)return false
@@ -238,7 +294,12 @@ export default function App(){
           lesson ?
           <LessonWorkspace
             lesson={lesson} title={title} markdown={markdown} mode={mode}
-            canEdit={canEdit} busy={busy} dirty={dirty} autoBreak={autoBreak} activeTemplate={activePresentation}
+            canEdit={canEdit} busy={busy} dirty={dirty} autoBreak={autoBreak}
+            saveStatus={saveStatus} editorReady={editor.ready} activeTemplate={activePresentation}
+            editorLayout={editor.layout} editorSlides={slideModels}
+            onUpdateGeometry={editor.updateGeometry} onResetGeometry={editor.resetGeometry}
+            onGeometryStart={editor.checkpoint} onUndoGeometry={editor.undo}
+            onRedoGeometry={editor.redo} canUndoGeometry={editor.canUndo} canRedoGeometry={editor.canRedo}
             isDictating={dictating} theme={colors} slides={slides} previewPage={previewPage}
             noteIndex={noteIndex} noteText={noteText}
             onTitleChange={setTitle} onMarkdownChange={setMarkdown} onModeChange={setMode}
@@ -283,7 +344,8 @@ export default function App(){
         onUploadImage={uploadBackground}/>}
     {presenting && lesson &&
       <Presentation slides={slides} title={title} theme={colors} template={activePresentation}
-        notes={notes} canEdit={canEdit} onClose={closePresentation}/>}
+        editorLayout={editor.layout} editorSlides={slideModels}
+        notes={presenterNotes} canEdit={canEdit} onClose={closePresentation}/>}
     {create && <div className="modal-backdrop">
       <form className="modal" onSubmit={event=>void createEntity(event)}>
         <div className="modal-top">

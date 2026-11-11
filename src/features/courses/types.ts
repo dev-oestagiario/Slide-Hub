@@ -12,7 +12,9 @@ export type Lesson = {
   theme_config?: unknown
   presentation_template_id?: string | null
   presentation_template_snapshot?: unknown
+  editor_layout?: unknown
+  editor_revision?: number
   updated_at?: string
 }
 export type SlideTemplate = { id: string; owner_id: string; name: string; config: unknown }
-export type SpeakerNote = { id?: string; lesson_id: string; slide_index: number; notes: string }
+export type SpeakerNote = { id?: string; lesson_id: string; slide_index: number; slide_key?: string | null; notes: string }
