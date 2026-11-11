@@ -1,0 +1,9 @@
+{
+  "name": "Tema institucional",
+  "config": {
+    "background": "#FAFCFB",
+    "foreground": "#12544F",
+    "accent": "#1E7C74",
+    "fontFamily": "Inter, sans-serif"
+  }
+}

@@ -1,0 +1,141 @@
+{
+  "version": 1,
+  "description": "Skills selecionadas para design, frontend, testes, arquitetura e Supabase. Instaladas sob demanda, nunca durante CI.",
+  "skills": [
+    {
+      "name": "find-skills",
+      "package": "vercel-labs/skills@find-skills",
+      "source": "https://github.com/vercel-labs/skills"
+    },
+    {
+      "name": "frontend-design",
+      "package": "anthropics/skills@frontend-design",
+      "source": "https://github.com/anthropics/skills"
+    },
+    {
+      "name": "ui-ux-pro-max",
+      "package": "nextlevelbuilder/ui-ux-pro-max-skill@ui-ux-pro-max",
+      "source": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill"
+    },
+    {
+      "name": "web-design-guidelines",
+      "package": "vercel-labs/agent-skills@web-design-guidelines",
+      "source": "https://github.com/vercel-labs/agent-skills"
+    },
+    {
+      "name": "design-system",
+      "package": "nextlevelbuilder/ui-ux-pro-max-skill@design-system",
+      "source": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill"
+    },
+    {
+      "name": "ui-styling",
+      "package": "nextlevelbuilder/ui-ux-pro-max-skill@ui-styling",
+      "source": "https://github.com/nextlevelbuilder/ui-ux-pro-max-skill"
+    },
+    {
+      "name": "tailwind-css",
+      "package": "paulrberg/agent-skills@tailwind-css",
+      "source": "https://github.com/paulrberg/agent-skills"
+    },
+    {
+      "name": "react-best-practices",
+      "package": "vercel-labs/agent-skills@react-best-practices",
+      "source": "https://github.com/vercel-labs/agent-skills"
+    },
+    {
+      "name": "composition-patterns",
+      "package": "vercel-labs/agent-skills@composition-patterns",
+      "source": "https://github.com/vercel-labs/agent-skills"
+    },
+    {
+      "name": "react",
+      "package": "pymodel/react-frontend-skills@react",
+      "source": "https://github.com/pymodel/react-frontend-skills"
+    },
+    {
+      "name": "typescript",
+      "package": "pymodel/react-frontend-skills@typescript",
+      "source": "https://github.com/pymodel/react-frontend-skills"
+    },
+    {
+      "name": "feature-arch",
+      "package": "pymodel/react-frontend-skills@feature-arch",
+      "source": "https://github.com/pymodel/react-frontend-skills"
+    },
+    {
+      "name": "tanstack-query",
+      "package": "pymodel/react-frontend-skills@tanstack-query",
+      "source": "https://github.com/pymodel/react-frontend-skills"
+    },
+    {
+      "name": "webapp-testing",
+      "package": "anthropics/skills@webapp-testing",
+      "source": "https://github.com/anthropics/skills"
+    },
+    {
+      "name": "playwright",
+      "package": "pymodel/react-frontend-skills@playwright",
+      "source": "https://github.com/pymodel/react-frontend-skills"
+    },
+    {
+      "name": "vitest",
+      "package": "pymodel/react-frontend-skills@vitest",
+      "source": "https://github.com/pymodel/react-frontend-skills"
+    },
+    {
+      "name": "msw",
+      "package": "pymodel/react-frontend-skills@msw",
+      "source": "https://github.com/pymodel/react-frontend-skills"
+    },
+    {
+      "name": "test-driven-development",
+      "package": "obra/superpowers@test-driven-development",
+      "source": "https://github.com/obra/superpowers"
+    },
+    {
+      "name": "systematic-debugging",
+      "package": "obra/superpowers@systematic-debugging",
+      "source": "https://github.com/obra/superpowers"
+    },
+    {
+      "name": "agent-browser",
+      "package": "vercel-labs/agent-browser@agent-browser",
+      "source": "https://github.com/vercel-labs/agent-browser"
+    },
+    {
+      "name": "improve-codebase-architecture",
+      "package": "mattpocock/skills@improve-codebase-architecture",
+      "source": "https://github.com/mattpocock/skills"
+    },
+    {
+      "name": "domain-modeling",
+      "package": "mattpocock/skills@domain-modeling",
+      "source": "https://github.com/mattpocock/skills"
+    },
+    {
+      "name": "codebase-design",
+      "package": "mattpocock/skills@codebase-design",
+      "source": "https://github.com/mattpocock/skills"
+    },
+    {
+      "name": "code-review",
+      "package": "mattpocock/skills@code-review",
+      "source": "https://github.com/mattpocock/skills"
+    },
+    {
+      "name": "writing-plans",
+      "package": "obra/superpowers@writing-plans",
+      "source": "https://github.com/obra/superpowers"
+    },
+    {
+      "name": "supabase-postgres-best-practices",
+      "package": "supabase/agent-skills@supabase-postgres-best-practices",
+      "source": "https://github.com/supabase/agent-skills"
+    },
+    {
+      "name": "pptx",
+      "package": "anthropics/skills@pptx",
+      "source": "https://github.com/anthropics/skills"
+    }
+  ]
+}
