@@ -1,16 +1,16 @@
 import { useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import { ArrowLeft, Check, CheckCircle2, Copy, FileText, ImagePlus, LayoutTemplate, Pencil, Plus, Search, Trash2, X } from 'lucide-react'
-import { MarkdownView } from '../../components/MarkdownView'
 import { FONT_OPTIONS, normalizeSlideTheme, slideBackgroundStyle, THEME_PRESETS } from '../../lib/slideThemes'
 import type { SlideTheme } from '../../lib/slideThemes'
 import type { SlideLayout } from '../../lib/slideParser'
+import { SAMPLE_KIND_OPTIONS, TemplatePreview } from './TemplatePreview'
 import type { Lesson } from '../courses/types'
 import {
   BUILTIN_PRESENTATION_TEMPLATES, normalizePresentationTemplate,
   personalTemplate, templateChoices
 } from './model'
-import type { PresentationTemplateRecord, PresentationTemplateConfig, TemplateChoice } from './model'
+import type { PresentationTemplateRecord, PresentationTemplateConfig, TemplateChoice, SlideKind, BrandingConfig, CoverConfig } from './model'
 
 type TemplateDraft = {
   name: string
@@ -33,7 +33,6 @@ type Props = {
   onNotify: (message: string) => void
 }
 
-const sampleMarkdown = '# Introdução ao conteúdo\n\nUma aula clara começa com uma boa ideia.\n\n- Primeiro conceito\n- Exemplo prático\n- Resumo'
 const layoutOptions: { value: SlideLayout; label: string }[] = [
   { value:'default', label:'Texto organizado' },
   { value:'center', label:'Centralizado' },
@@ -64,10 +63,11 @@ export function TemplateLibrary({
   const [busy,setBusy]=useState(false)
   const [imageBusy,setImageBusy]=useState(false)
   const [targetLessonId,setTargetLessonId]=useState(currentLesson?.id || '')
+  const [editSection,setEditSection]=useState<'identity'|'composition'|'branding'>('identity')
+  const [previewKind,setPreviewKind]=useState<SlideKind>('cover')
   const choices=useMemo(()=>templateChoices(records),[records])
   const selected=choices.find(t=>t.id===selectedId)??choices[0]
   const ownedLessons=lessons
-  const source=previewMarkdown || currentLesson?.markdown || sampleMarkdown
   const personal=selected?.kind==='personal' ? records.find(r=>r.id===selected.id) : undefined
   const items=choices.filter(choice=>
     (filter==='all'||choice.kind===filter)
@@ -77,19 +77,36 @@ export function TemplateLibrary({
   function beginCreate(choice=selected) {
     setDraft({...draftFromChoice(choice),name:choice.kind==='builtin'?choice.name+' personalizado':'Novo template'})
     setEditId('')
-    setEditing('create')
+    setEditSection('identity');setPreviewKind('cover');setEditing('create')
   }
   function beginUpdate() {
     if(!personal)return
     setDraft(draftFromChoice(personalTemplate(personal)))
     setEditId(personal.id)
-    setEditing('update')
+    setEditSection('identity');setPreviewKind('cover');setEditing('update')
   }
   function changeTheme(patch:Partial<SlideTheme>) {
     setDraft(v=>({...v,config:{...v.config,theme:normalizeSlideTheme({...v.config.theme,...patch})}}))
   }
-  function setLayout(key:'cover'|'content'|'exercise',value:SlideLayout) {
+  function setLayout(key:SlideKind,value:SlideLayout) {
     setDraft(v=>({...v,config:{...v.config,layouts:{...v.config.layouts,[key]:value}}}))
+  }
+  function setBranding(patch:Partial<BrandingConfig>) {
+    setDraft(v=>({...v,config:{...v.config,branding:{...v.config.branding,...patch}}}))
+  }
+  function setCover(patch:Partial<CoverConfig>) {
+    setDraft(v=>({...v,config:{...v.config,cover:{...v.config.cover,...patch}}}))
+  }
+  async function uploadArtwork(file:File,target:'logo'|'cover') {
+    if(!canWrite)return
+    setImageBusy(true)
+    try{
+      const url=await onUploadImage(file)
+      if(target==='logo')setBranding({logoUrl:url,showHeader:true})
+      else setCover({backgroundImage:url})
+      setPreviewKind('cover')
+    }catch(error){onNotify(error instanceof Error?error.message:'Não foi possível enviar a imagem.')}
+    finally{setImageBusy(false)}
   }
   function setFooter(patch:Partial<PresentationTemplateConfig['footer']>) {
     setDraft(v=>({...v,config:{...v.config,footer:{...v.config.footer,...patch}}}))
@@ -169,6 +186,18 @@ export function TemplateLibrary({
               onChange={event=>setDraft(v=>({...v,description:event.target.value}))}
               placeholder="Quando usar este modelo?"/>
           </label>
+          <div className="f3-editor-steps" role="group" aria-label="Etapas de criação">
+            {([
+              ['identity','1. Aparência'],
+              ['composition','2. Composição'],
+              ['branding','3. Identidade visual']
+            ] as const).map(([section,label])=>
+              <button key={section} type="button" aria-pressed={editSection===section}
+                className={editSection===section?'selected':''} onClick={()=>setEditSection(section)}>
+                {label}
+              </button>)}
+          </div>
+          {editSection==='identity'&&<div className="f3-editor-section">
           <h3>Escolha um ponto de partida</h3>
           <div className="f2-preset-swatches" role="group" aria-label="Paletas de cores">
             {THEME_PRESETS.map(preset=><button type="button" key={preset.id}
@@ -201,16 +230,77 @@ export function TemplateLibrary({
               {FONT_OPTIONS.map(font=><option value={font.value} key={font.value}>{font.label}</option>)}
             </select>
           </label>
+          <div className="f3-hint">Escolha um fundo e uma fonte. Eles aparecerão em todos os slides da aula.</div>
+          </div>}
+          {editSection==='composition'&&<div className="f3-editor-section">
           <h3>Organização automática</h3>
-          {([
-            ['cover','Slide de abertura'],
-            ['content','Slides de conteúdo'],
-            ['exercise','Slides de exercício']
-          ] as const).map(([key,label])=><label key={key}>{label}
-            <select value={draft.config.layouts[key]} onChange={event=>setLayout(key,event.target.value as SlideLayout)}>
-              {layoutOptions.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}
+          <p className="f3-section-description">O SlideHub reconhece o tipo de conteúdo e aplica o layout escolhido. Você continua apenas escrevendo ou ditando.</p>
+          <div className="f3-layout-grid">
+            {SAMPLE_KIND_OPTIONS.map(({kind,label,subtitle})=><div className="f3-layout-option" key={kind}>
+              <button type="button" className={'f3-layout-preview '+(previewKind===kind?'active':'')}
+                onClick={()=>setPreviewKind(kind)} aria-pressed={previewKind===kind}>
+                <strong>{label}</strong><small>{subtitle}</small>
+              </button>
+              <label className="f3-layout-select">Composição para {label.toLocaleLowerCase('pt-BR')}
+                <select value={draft.config.layouts[kind]} onChange={event=>{
+                  setLayout(kind,event.target.value as SlideLayout)
+                  setPreviewKind(kind)
+                }}>
+                  {layoutOptions.map(option=><option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </label>
+            </div>)}
+          </div>
+          <label>Densidade visual
+            <select value={draft.config.density} onChange={event=>setDraft(v=>({...v,config:{...v.config,
+              density:event.target.value as PresentationTemplateConfig['density']}}))}>
+              <option value="comfortable">Mais espaço e fonte maior</option>
+              <option value="balanced">Equilibrado</option>
+              <option value="compact">Mais informação por slide</option>
             </select>
-          </label>)}
+          </label>
+          <p className="f3-hint">Caso o professor peça um layout específico no texto, essa escolha é respeitada. Ajustes de posição por arrastar virão na F4.</p>
+          </div>}
+          {editSection==='branding'&&<div className="f3-editor-section">
+          <h3>Assinatura visual</h3>
+          <label className="f2-checkbox"><input type="checkbox" checked={draft.config.branding.showHeader}
+            onChange={event=>setBranding({showHeader:event.target.checked})}/> Mostrar cabeçalho da instituição</label>
+          <label>Texto do cabeçalho
+            <input maxLength={50} value={draft.config.branding.label}
+              onChange={event=>setBranding({label:event.target.value})}
+              placeholder="Ex.: Colégio / Departamento" />
+          </label>
+          <label>Posição da marca
+            <select value={draft.config.branding.logoAlignment}
+              onChange={event=>setBranding({logoAlignment:event.target.value==='right'?'right':'left'})}>
+              <option value="left">À esquerda</option><option value="right">À direita</option>
+            </select>
+          </label>
+          <label className="f2-checkbox"><input type="checkbox" checked={draft.config.branding.accentRule}
+            onChange={event=>setBranding({accentRule:event.target.checked})}/> Faixa discreta com a cor de destaque</label>
+          <div className="f3-media-field">
+            <div><strong>Logotipo</strong><small>PNG, JPEG ou WebP · até 3 MB</small></div>
+            <label className="f2-image-upload"> {imageBusy?'Enviando...':'Escolher logo'}
+              <input type="file" disabled={imageBusy} accept="image/png,image/jpeg,image/webp"
+                onChange={event=>{const file=event.target.files?.[0];if(file)void uploadArtwork(file,'logo');event.target.value=''}}/>
+            </label>
+            {draft.config.branding.logoUrl&&<button type="button" className="f3-remove"
+              onClick={()=>setBranding({logoUrl:undefined})}>Remover</button>}
+          </div>
+          <h3>Capa personalizada</h3>
+          <div className="f3-media-field">
+            <div><strong>Imagem exclusiva da capa</strong><small>Apenas no primeiro slide; o restante usa o fundo global</small></div>
+            <label className="f2-image-upload"> {imageBusy?'Enviando...':'Escolher fundo'}
+              <input type="file" disabled={imageBusy} accept="image/png,image/jpeg,image/webp"
+                onChange={event=>{const file=event.target.files?.[0];if(file)void uploadArtwork(file,'cover');event.target.value=''}}/>
+            </label>
+            {draft.config.cover.backgroundImage&&<button type="button" className="f3-remove"
+              onClick={()=>setCover({backgroundImage:undefined})}>Remover</button>}
+          </div>
+          {draft.config.cover.backgroundImage&&<label>Escurecimento do fundo: {Math.round(draft.config.cover.overlayOpacity*100)}%
+            <input type="range" min={15} max={85} step={5} value={Math.round(draft.config.cover.overlayOpacity*100)}
+              onChange={event=>setCover({overlayOpacity:Number(event.target.value)/100})}/>
+          </label>}
           <h3>Rodapé dos slides</h3>
           <label>Texto do rodapé
             <input maxLength={80} value={draft.config.footer.text}
@@ -218,6 +308,7 @@ export function TemplateLibrary({
           </label>
           <label className="f2-checkbox"><input type="checkbox" checked={draft.config.footer.showPageNumber}
             onChange={event=>setFooter({showPageNumber:event.target.checked})}/> Mostrar numeração no slide</label>
+          </div>}
           <div className="f2-editor-actions">
             <button className="button secondary" type="button" onClick={()=>setEditing(null)}>Cancelar</button>
             <button className="button primary" disabled={busy||imageBusy||!draft.name.trim()} type="submit">
@@ -227,8 +318,14 @@ export function TemplateLibrary({
         </form>
         <div className="f2-editor-preview">
           <h3>Prévia do template</h3>
-          <TemplatePreview config={showing} markdown={source}/>
-          <p>O mesmo visual será aplicado aos slides gerados a partir do seu texto.</p>
+          <div className="f3-preview-chooser" role="group" aria-label="Exemplos de slides">
+            {SAMPLE_KIND_OPTIONS.map(option=><button key={option.kind} type="button"
+              className={previewKind===option.kind?'active':''}
+              aria-pressed={previewKind===option.kind}
+              onClick={()=>setPreviewKind(option.kind)}>{option.label}</button>)}
+          </div>
+          <TemplatePreview config={showing} kind={previewKind}/>
+          <p>Exemplo de {SAMPLE_KIND_OPTIONS.find(option=>option.kind===previewKind)?.label.toLocaleLowerCase('pt-BR')}. A aparência é aplicada automaticamente ao conteúdo, sem montar slides manualmente.</p>
         </div>
       </div>
     </div> : <div className="f2-browser">
@@ -260,7 +357,7 @@ export function TemplateLibrary({
           <span className="f2-detail-kicker">{selected.kind==='personal'?'MEU TEMPLATE':'MODELO PRONTO'}</span>
           <h2>{selected.name}</h2>
           <p>{selected.description||'Uma apresentação com identidade visual consistente.'}</p>
-          <TemplatePreview config={showing} markdown={source}/>
+          <TemplatePreview config={showing} kind={previewKind}/>
           <div className="f2-detail-meta"><CheckCircle2 size={17}/> Aplica o mesmo visual a todos os slides.</div>
           {canWrite&&<div className="f2-apply">
             <label>Aplicar na aula
@@ -286,17 +383,3 @@ export function TemplateLibrary({
   </section>
 }
 
-function TemplatePreview({config,markdown}:{config:PresentationTemplateConfig;markdown:string}) {
-  const parsed=markdown.trim().split(/\n##\s+/)
-  const preview=parsed[0]||sampleMarkdown
-  const chosenLayout=config.layouts.cover
-  return <div className="f2-preview-wrap">
-    <div className={'f2-preview-slide f2-layout-'+chosenLayout} style={slideBackgroundStyle(config.theme)}>
-      <span className="f2-preview-kicker" style={{color:config.theme.accent}}>SLIDEHUB / AULA</span>
-      <div className="f2-preview-content"><MarkdownView markdown={preview}/></div>
-      <div className="f2-preview-footer">
-        <span>{config.footer.text}</span>{config.footer.showPageNumber&&<span>01 / 03</span>}
-      </div>
-    </div>
-  </div>
-}
