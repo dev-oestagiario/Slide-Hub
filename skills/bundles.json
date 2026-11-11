@@ -1,0 +1,37 @@
+{
+  "version": 1,
+  "description": "Conjuntos para instalar skills do SlideHub por disciplina, sem executar instalações automáticas no CI.",
+  "bundles": {
+    "frontend": {
+      "description": "TypeScript e arquitetura frontend orientada a funcionalidades, com cache de dados.",
+      "skills": [
+        "typescript",
+        "feature-arch",
+        "tanstack-query"
+      ]
+    },
+    "qa": {
+      "description": "Testes E2E, unitários, mocks, TDD, investigação de bugs e inspeção do navegador.",
+      "skills": [
+        "webapp-testing",
+        "playwright",
+        "vitest",
+        "msw",
+        "test-driven-development",
+        "systematic-debugging",
+        "agent-browser"
+      ]
+    },
+    "engineering": {
+      "description": "Arquitetura sustentável, modelagem, revisão de código, planejamento e Supabase/PostgreSQL.",
+      "skills": [
+        "improve-codebase-architecture",
+        "domain-modeling",
+        "codebase-design",
+        "code-review",
+        "writing-plans",
+        "supabase-postgres-best-practices"
+      ]
+    }
+  }
+}
