@@ -34,7 +34,7 @@ export function useLessonEditor({lesson,canEdit,autoBreak,userId,onPersist,onNot
   const [historyNumber,setHistoryNumber]=useState(0)
   const current=useRef<Snapshot>({lessonId:'',title:'',markdown:'',layout:emptyLayout()})
   const savedRef=useRef<Saved|null>(null)
-  const saving=useRef<Promise<boolean>|null>(null)
+  const saving=useRef<{lessonId:string;job:Promise<boolean>}|null>(null)
   const history=useRef<EditorLayout[]>([])
   const redoHistory=useRef<EditorLayout[]>([])
 
@@ -61,7 +61,11 @@ export function useLessonEditor({lesson,canEdit,autoBreak,userId,onPersist,onNot
       const cached=JSON.parse(raw) as {title?:string;markdown?:string;layout?:unknown;revision?:number}
       if(typeof cached.title!=='string'||typeof cached.markdown!=='string')return
       if(cached.title===lesson.title&&cached.markdown===lesson.markdown&&layoutsEqual(normalizeEditorLayout(cached.layout),state))return
-      if(window.confirm('Encontramos um rascunho local desta aula. Deseja recuperar o texto e o layout?')){
+      const stale=cached.revision!==undefined&&cached.revision!==(lesson.editor_revision??0)
+      const notice=stale
+        ?'Este rascunho foi criado a partir de uma revisão anterior da aula. Recuperá-lo pode substituir alterações mais recentes. Deseja recuperar o texto e o layout?'
+        :'Encontramos um rascunho local desta aula. Deseja recuperar o texto e o layout?'
+      if(window.confirm(notice)){
         setTitleState(cached.title)
         setMarkdownState(cached.markdown)
         setLayout(reconcileEditorLayout(parseSlides(cached.markdown,autoBreak),cached.layout))
@@ -123,7 +127,7 @@ export function useLessonEditor({lesson,canEdit,autoBreak,userId,onPersist,onNot
 
   async function flush():Promise<boolean>{
     if(!canEdit||!supabase||!lesson||!userId||loadedFor!==lesson.id)return false
-    if(saving.current)return saving.current
+    if(saving.current?.lessonId===lesson.id)return saving.current.job
     const target=lesson.id
     const job=(async()=>{
       let attempts=0
@@ -141,6 +145,8 @@ export function useLessonEditor({lesson,canEdit,autoBreak,userId,onPersist,onNot
         const {data,error}=await supabase.from('lessons').update({
           title:snapshot.title.trim()||lesson.title,markdown:snapshot.markdown,editor_layout:snapshot.layout
         }).eq('id',target).eq('editor_revision',baseline.revision).select('*').maybeSingle()
+        // An older request must never overwrite the state of the next lesson.
+        if(current.current.lessonId!==target)return false
         if(error||!data){
           setStatus('error')
           onNotify(error?.message||'Conflito: a aula foi alterada em outra janela. Copie seu texto antes de recarregar.')
@@ -160,9 +166,9 @@ export function useLessonEditor({lesson,canEdit,autoBreak,userId,onPersist,onNot
       setStatus('error');onNotify('O salvamento demorou demais. Tente novamente.')
       return false
     })()
-    saving.current=job
+    saving.current={lessonId:target,job}
     try{return await job}
-    finally{saving.current=null}
+    finally{if(saving.current?.job===job)saving.current=null}
   }
 
   useEffect(()=>{
