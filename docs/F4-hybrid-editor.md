@@ -19,7 +19,7 @@ A escrita (Markdown amigável + ferramentas de inserção) e o ditado continuam 
 - `lessons.editor_revision` (inteiro para prevenção de conflito entre abas);
 - trigger de incremento de revisão ao alterar texto, título ou layout;
 - `speaker_notes.slide_key`, índice único parcial para a referência estável e índice secundário para compatibilidade;
-- remove apenas a restrição antiga de unicidade por posição do slide (não apaga notas).
+- **preserva a restrição antiga** de unicidade por índice para compatibilidade com o site já publicado; novas notas por chave usam índices disponíveis quando necessário.
 
 **Não executar a migration na produção sem revisar dependências, backup e testes de autorização.** O código F4 só deve ir à `main` depois da migração ou por publicação coordenada. Se faltar `editor_layout`/`editor_revision`, o editor exibirá erro de salvamento; não escondê-lo.
 

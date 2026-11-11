@@ -27,8 +27,9 @@ for each row execute function private.bump_lesson_editor_revision();
 alter table public.speaker_notes add column if not exists slide_key text;
 create unique index if not exists speaker_notes_slide_key_unique
  on public.speaker_notes(lesson_id,slide_key) where slide_key is not null;
--- Keep index for compatibility, but remove unique (lesson_id, slide_index) to allow shifting.
-alter table public.speaker_notes drop constraint if exists speaker_notes_lesson_id_slide_index_key;
+-- Preserve the old (lesson_id, slide_index) uniqueness constraint.
+-- Older deployed clients still upsert on that key. New clients identify notes by
+-- slide_key and allocate a spare legacy index when the visual index is occupied.
 create index if not exists speaker_notes_lesson_index_idx on public.speaker_notes(lesson_id,slide_index);
 -- Enforce well-formed IDs when supplied; legacy rows may have NULL.
 alter table public.speaker_notes

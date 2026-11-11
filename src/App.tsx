@@ -136,7 +136,13 @@ export default function App(){
     if(!supabase||!lesson||!canEdit||!noteSlideKey)return
     const previous=notes.find(note=>note.slide_key===noteSlideKey)
       ??notes.find(note=>!note.slide_key&&note.slide_index===noteIndex)
-    const payload={lesson_id:lesson.id,slide_index:noteIndex,slide_key:noteSlideKey,notes:noteText}
+    // Keep the old unique (lesson_id, slide_index) for running clients.
+    // Existing keyed notes retain their historical index; new notes use a free
+    // numeric slot if inserting a slide displaced an older note.
+    const taken=new Set(notes.map(note=>note.slide_index))
+    const storageIndex=previous?.slide_index
+      ??(taken.has(noteIndex)?Math.max(-1,...taken)+1:noteIndex)
+    const payload={lesson_id:lesson.id,slide_index:storageIndex,slide_key:noteSlideKey,notes:noteText}
     const query=previous?.id
       ?supabase.from('speaker_notes').update(payload).eq('id',previous.id).select('*').maybeSingle()
       :supabase.from('speaker_notes').insert(payload).select('*').maybeSingle()
