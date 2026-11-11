@@ -1,6 +1,8 @@
 import React, { useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { Presentation } from '../../src/components/Presentation'
+import { ExportStudio } from '../../src/features/export/ExportStudio'
+import { buildExportPlan } from '../../src/features/export/exportModel'
 import { DEFAULT_SLIDE_THEME } from '../../src/lib/slideThemes'
 import { parseSlides } from '../../src/lib/slideParser'
 import { editorSlides, emptyLayout, reconcileEditorLayout, setBlockRect } from '../../src/features/editor/layoutModel'
@@ -38,11 +40,16 @@ const models=editorSlides(slides,pinned)
 
 function Fixture(){
   const [opened,setOpened]=useState(false)
+  const [exporting,setExporting]=useState(false)
   const canEdit=!new URLSearchParams(location.search).has('student')
   return <main>
     <h1>Ambiente de teste do apresentador</h1>
     <button type="button" onClick={()=>setOpened(true)}>Abrir apresentação</button>
+    {canEdit&&<button type="button" onClick={()=>setExporting(true)}>Exportar apresentação</button>}
     <p>Teste automatizado isolado: não usa credenciais nem acessa o Supabase.</p>
+    {exporting&&<ExportStudio plan={buildExportPlan({
+      title:'Aula de teste',slides,theme:DEFAULT_SLIDE_THEME,editorLayout:pinned
+    })} onClose={()=>setExporting(false)}/>}
     {opened&&<Presentation slides={slides} title="Aula de teste" theme={DEFAULT_SLIDE_THEME}
       notes={[{slide_index:2,slide_key:models[2].key,notes:'ANOTAÇÃO SOMENTE PROFESSOR'}]}
       canEdit={canEdit} editorLayout={pinned} editorSlides={models}
