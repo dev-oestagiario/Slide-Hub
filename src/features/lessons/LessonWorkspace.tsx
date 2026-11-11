@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
-import { BookOpenText, CheckCircle2, ChevronLeft, ChevronRight, Code2, Columns3, FileText, ImagePlus, List, LayoutTemplate, Mic, Pause, Palette, Play, Plus, Quote, Save, Table2, Upload, Move, Undo2, Redo2 } from 'lucide-react'
+import { BookOpenText, CheckCircle2, ChevronLeft, ChevronRight, Code2, Columns3, FileText, ImagePlus, List, LayoutTemplate, Mic, Pause, Palette, Play, Plus, Quote, Save, Table2, Upload, Move, Undo2, Redo2, Download } from 'lucide-react'
 import { MarkdownView } from '../../components/MarkdownView'
 import { articleMarkdown } from '../../lib/slideParser'
 import type { Slide } from '../../lib/slideParser'
@@ -52,6 +52,7 @@ export type LessonWorkspaceProps = {
   onSave: () => void
   onPublish: () => void
   onPresent: () => void
+  onExport: () => void
   onOpenThemeStudio: () => void
   onOpenTemplateLibrary: () => void
   onSaveNote: () => void
@@ -67,7 +68,7 @@ export function LessonWorkspace({
   onUndoGeometry, onRedoGeometry, canUndoGeometry, canRedoGeometry, isDictating,
   theme, activeTemplate, slides, previewPage, noteIndex, noteText,
   onTitleChange, onMarkdownChange, onModeChange, onAutoBreakChange, onPreviewPageChange,
-  onNoteIndexChange, onNoteTextChange, onSave, onPublish, onPresent,
+  onNoteIndexChange, onNoteTextChange, onSave, onPublish, onPresent, onExport,
   onOpenThemeStudio, onOpenTemplateLibrary, onSaveNote, onDictate, onImportTemplate, onUploadContentImage, onNotify
 }: LessonWorkspaceProps) {
   const editorRef = useRef<HTMLTextAreaElement>(null)
@@ -124,6 +125,10 @@ export function LessonWorkspace({
         {canEdit && <button className="button subtle" onClick={onPublish}>{lesson.status === 'published' ? 'Despublicar' : 'Publicar'}</button>}
         {canEdit && <button className="button secondary" onClick={onSave} disabled={!dirty || busy}>
           <Save size={17}/> Salvar
+        </button>}
+        {canEdit && <button className="button secondary" onClick={onExport}
+          title="Exportar slides em HTML ou imprimir como PDF">
+          <Download size={17}/> Exportar
         </button>}
         <button className="button primary" onClick={onPresent} title="Apresentar usando o conteúdo atual">
           <Play size={17}/> Apresentar

@@ -3,6 +3,8 @@ import type { FormEvent } from 'react'
 import { ChevronRight, GraduationCap, X } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import { Presentation } from './components/Presentation'
+import { ExportStudio } from './features/export/ExportStudio'
+import { buildExportPlan } from './features/export/exportModel'
 import { ModalShell } from './components/ModalShell'
 import { ThemeStudio } from './components/ThemeStudio'
 import { DEFAULT_SLIDE_THEME, normalizeSlideTheme } from './lib/slideThemes'
@@ -34,6 +36,7 @@ export default function App(){
   const [presentationTemplates,setPresentationTemplates]=useState<PresentationTemplateRecord[]>([])
   const [templateLibraryOpen,setTemplateLibraryOpen]=useState(false)
   const [mode,setMode]=useState<'edit'|'article'>('edit'),[presenting,setPresenting]=useState(false)
+  const [exporting,setExporting]=useState(false)
   const [create,setCreate]=useState<'discipline'|'module'|'lesson'|null>(null),[newTitle,setNewTitle]=useState(''),[newDesc,setNewDesc]=useState(''),[busy,setBusy]=useState(false),[message,setMessage]=useState('')
   const [themeConfig,setThemeConfig]=useState<SlideTheme>(DEFAULT_SLIDE_THEME),[themeStudioOpen,setThemeStudioOpen]=useState(false),[autoBreak,setAutoBreak]=useState(true),[notes,setNotes]=useState<Note[]>([]),[noteIndex,setNoteIndex]=useState(0),[noteText,setNoteText]=useState(''),[showSidebar,setShowSidebar]=useState(false)
   const [previewPage,setPreviewPage] = useState(0)
@@ -67,7 +70,7 @@ export default function App(){
     setPresentationTemplates((pt.data||[]) as PresentationTemplateRecord[])
   }
   useEffect(()=>{if(!user){setProfile(null);setDisciplines([]);setModules([]);setLessons([]);setPresentationTemplates([]);setTemplateLibraryOpen(false);return}void refresh()},[user?.id])
-  useEffect(()=>{setMode('edit');setNoteIndex(0);setPreviewPage(0)},[lesson?.id])
+  useEffect(()=>{setMode('edit');setNoteIndex(0);setPreviewPage(0);setExporting(false)},[lesson?.id])
   useEffect(()=>{const raw=lesson?.theme_config&&typeof lesson.theme_config==='object'&&Object.keys(lesson.theme_config).length?lesson.theme_config:template?.config;setThemeConfig(normalizeSlideTheme(raw))},[lesson?.id,lesson?.theme_config,template?.config])
   useEffect(()=>{if(!lessonId||!canEdit||!supabase){setNotes([]);return}let active=true;supabase.from('speaker_notes').select('*').eq('lesson_id',lessonId).then(({data})=>{if(active)setNotes((data||[]) as Note[])});return ()=>{active=false}},[lessonId,canEdit])
   const noteSlideKey=slideModels[noteIndex]?.key
@@ -309,6 +312,7 @@ export default function App(){
             onNoteIndexChange={index=>{setNoteIndex(index);setPreviewPage(index)}}
             onNoteTextChange={setNoteText}
             onSave={()=>void save()} onPublish={()=>void publish()} onPresent={startPresentation}
+            onExport={()=>setExporting(true)}
             onOpenThemeStudio={()=>setThemeStudioOpen(true)} onOpenTemplateLibrary={openTemplateLibrary} onSaveNote={()=>void saveNote()}
             onDictate={dictate} onImportTemplate={file=>void importTemplate(file)}
             onUploadContentImage={uploadBackground} onNotify={setMessage}
@@ -342,6 +346,10 @@ export default function App(){
         savedThemes={templates} onClose={()=>setThemeStudioOpen(false)}
         onApply={applyGlobalTheme} onSavePreset={saveThemePreset}
         onUploadImage={uploadBackground}/>}
+    {exporting && lesson && canEdit && <ExportStudio
+      plan={buildExportPlan({title,slides,theme:colors,template:activePresentation,
+        editorLayout:editor.layout})}
+      onClose={()=>setExporting(false)}/>}
     {presenting && lesson &&
       <Presentation slides={slides} title={title} theme={colors} template={activePresentation}
         editorLayout={editor.layout} editorSlides={slideModels}
