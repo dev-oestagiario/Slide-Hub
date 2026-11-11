@@ -21,7 +21,7 @@ export function SlideInspector({block,rect,onChange,onReset,onClear}:Props){
   if(!block||!rect)return <div className="f7-inspector f7-inspector-empty" role="status">
     Selecione um elemento para ajustar posição, tamanho e alinhamento.
   </div>
-  const alignments:Array<{key:Alignment;label:string;icon:typeof AlignCenter}>= [
+  const alignments:Array<{key:Alignment;label:string;icon:typeof AlignCenterHorizontal}>= [
     {key:'left',label:'Alinhar à esquerda',icon:AlignStartVertical},
     {key:'centerX',label:'Centralizar horizontalmente',icon:AlignCenterHorizontal},
     {key:'right',label:'Alinhar à direita',icon:AlignEndVertical},
