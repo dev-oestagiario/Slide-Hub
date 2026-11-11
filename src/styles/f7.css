@@ -48,6 +48,20 @@
   inset:6%;border:1px dashed rgba(17,121,97,.42);pointer-events:none;z-index:2}
 .f7-editor-block{position:relative;min-width:0;max-width:100%;
   box-sizing:border-box;overflow-wrap:anywhere}
+/* Unpinned elements are content-sized while arranging: a short heading or
+   a small image must not have a selection box spanning the entire canvas.
+   Existing pinned geometry remains authoritative and untouched. */
+.f7-canvas.f4-arranging .f7-editor-block:not(.f4-pinned){
+  width:fit-content;
+  max-width:100%;
+  display:flow-root;
+}
+.f7-canvas.f4-arranging .f7-editor-block:not(.f4-pinned) > :first-child{
+  max-width:100%;
+}
+.f3-layout-center .f7-canvas.f4-arranging .f7-editor-block:not(.f4-pinned){
+  margin-inline:auto;
+}
 .f7-editor-block.f4-pinned{overflow:auto;overscroll-behavior:contain;
   max-width:none;min-width:0;padding:4px;box-sizing:border-box}
 .f7-editor-block.f4-pinned img{display:block;max-width:100%;max-height:100%;object-fit:contain}

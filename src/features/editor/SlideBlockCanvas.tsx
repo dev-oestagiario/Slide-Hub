@@ -89,8 +89,10 @@ export function SlideBlockCanvas({
     return normalizeRect({
       x:(item.left-(stage?.left||0))/width,
       y:(item.top-(stage?.top||0))/height,
-      w:Math.max(item.width/width,.14),
-      h:Math.max(item.height/height,.07),z:4
+      // Use the rendered bounds of the selected element, not the entire slide.
+      // The layout schema's small minimums apply only to very tiny items.
+      w:Math.max(item.width/width,.08),
+      h:Math.max(item.height/height,.05),z:4
     })??{x:.1,y:.1,w:.7,h:.24,z:4}
   }
 

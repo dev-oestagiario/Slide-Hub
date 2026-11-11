@@ -51,3 +51,7 @@ A paginação acontece uma única vez no estado derivado `useLessonEditor.parsed
 
 ## Portas de validação
 `npm test`, `npm run build`, `npm run skills:check` e `npm run test:e2e` no GitHub Actions. Integrar só depois de CI verde e revisão do PR.
+
+
+### Correção de seleção do elemento (PR #10)
+No modo Organizar visualmente, blocos **sem largura fixada** passam a usar `width: fit-content` e limite de 100% da área do slide. A borda de seleção acompanha as dimensões renderizadas do título, texto ou imagem, não a largura total do canvas. As caixas com coordenadas já salvas mantêm exatamente sua largura personalizada. O inspetor inicializa o tamanho pelo retângulo visual medido e só usa o tamanho mínimo aceito pelo esquema para itens minúsculos. Testes Playwright cobrem título curto, largura medida no inspetor e persistência da dimensão ao selecionar novamente.
