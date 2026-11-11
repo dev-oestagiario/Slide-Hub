@@ -171,3 +171,7 @@
 @media(prefers-reduced-motion:reduce){
   .f5-presenter-controls .slide-progress>span{transition:none!important}
 }
+
+@media(max-width:580px){
+ .f5-presenter-header .f5-teacher-action-text{display:none}
+}

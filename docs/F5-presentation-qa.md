@@ -25,7 +25,7 @@ Concluir a usabilidade de projeção do SlideHub sem deslocar a escrita/ditado d
 - E2E Chromium desktop 1440×900 e mobile 390×844: `npm run test:e2e`.
 - A fixture `tests/e2e/presenter.html` monta uma aula de teste in-memory. **Não utiliza Supabase nem autenticação real**. Verifica fluxo de apresentação, transições, índice, atalhos, foco, gabarito/controles somente na UI, geometria fixa e viewport.
 - GitHub Actions CI tem job `e2e` separado e registra evidências quando falhar.
-- Playwright é dependência de desenvolvimento: `@playwright/test` (não entra no bundle publicado). Instalação local: `npm install`; `npx playwright install chromium`.
+- Playwright é dependência de desenvolvimento: `@playwright/test` (não entra no bundle publicado). Instalação local: `npm install`; `Google Chrome instalado no sistema (canal chrome)`.
 
 ## Riscos e validação manual obrigatória antes de publicar
 1. **F4 precisa estar concluída e SQL F4 aplicado** ao Supabase antes de publicar o app que usa `lessons.editor_layout`, `lessons.editor_revision` e `speaker_notes.slide_key`. A F5 não aplica migrações.
@@ -39,3 +39,6 @@ Concluir a usabilidade de projeção do SlideHub sem deslocar a escrita/ditado d
 ## Integração
 - Branch `feat/f5-presenter-accessibility-e2e` parte da F4, PR #7, e deve ser integrada **depois** dela.
 - Não fazer merge/publicar F5 antes da migração F4, CI aprovada, validação E2E e inspeção manual de fluxo real.
+
+
+**CI F5:** os testes E2E usam o canal `chrome` já disponível no runner Ubuntu 24.04, evitando downloads custosos de Chromium em toda execução. Os testes também podem ser executados no computador local com o Chrome instalado.

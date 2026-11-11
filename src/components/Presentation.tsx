@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { ChevronLeft, ChevronRight, Keyboard, List, Maximize2, Minimize2, X } from 'lucide-react'
+import { BookOpenText, ChevronLeft, ChevronRight, Keyboard, List, Maximize2, Minimize2, X } from 'lucide-react'
 import { MarkdownView } from './MarkdownView'
 import {
   firstSlide, lastSlide, nextSlide, presentationKeyAction, previousSlide
@@ -129,7 +129,7 @@ export function Presentation({
       <div className="f5-presenter-header-actions">
         {canEdit&&<button onClick={()=>setSpeakerMode(value=>!value)}
           aria-pressed={speakerMode} aria-label={speakerMode?'Ocultar notas privadas':'Mostrar notas do professor'}>
-          {speakerMode?'Ocultar notas':'Modo professor'}
+          <BookOpenText size={18}/><span className="f5-teacher-action-text">{speakerMode?'Ocultar notas':'Modo professor'}</span>
         </button>}
         <button onClick={()=>setShowOutline(value=>!value)} aria-controls="f5-slide-outline"
           aria-expanded={showOutline} aria-label="Exibir lista de slides" title="Lista de slides (O)">

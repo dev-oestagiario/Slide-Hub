@@ -12,8 +12,8 @@ export default defineConfig({
     screenshot:'only-on-failure'
   },
   projects:[
-    {name:'chromium-desktop',use:{browserName:'chromium',viewport:{width:1440,height:900}}},
-    {name:'chromium-mobile',use:{browserName:'chromium',viewport:{width:390,height:844},isMobile:true,hasTouch:true}}
+    {name:'chromium-desktop',use:{browserName:'chromium',channel:'chrome',viewport:{width:1440,height:900}}},
+    {name:'chromium-mobile',use:{browserName:'chromium',channel:'chrome',viewport:{width:390,height:844},isMobile:true,hasTouch:true}}
   ],
   webServer:{
     command:'npm run dev -- --host 127.0.0.1 --port 4173 --strictPort',
