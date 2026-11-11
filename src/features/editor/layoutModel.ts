@@ -15,9 +15,10 @@ export const emptyLayout=():EditorLayout=>({schemaVersion:1,blocks:[],overrides:
 const object=(value:unknown):Record<string,unknown>=>value&&typeof value==='object'&&!Array.isArray(value)?value as Record<string,unknown>:{}
 const clamp=(n:number,min:number,max:number)=>Math.max(min,Math.min(max,n))
 function kind(markdown:string):BlockKind{
-  if(/^\s*#{1,6} /m.test(markdown))return 'heading'
-  if(/^\s*!\[[^\]]*\]\(/m.test(markdown))return 'image'
+  // The first fence owns all following lines, including Markdown headings.
   if(/^\s*(?:`{3,}|~{3,})/.test(markdown))return 'code'
+  if(/^\s*#{1,6} /.test(markdown))return 'heading'
+  if(/^\s*!\[[^\]]*\]\(/m.test(markdown))return 'image'
   if(/^\s*\|.+\|/m.test(markdown))return 'table'
   if(/^\s*>/.test(markdown))return 'quote'
   if(/^\s*(?:[-*+] |\d+[.)] )/.test(markdown))return 'list'
