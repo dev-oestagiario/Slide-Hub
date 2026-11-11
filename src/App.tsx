@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { ChevronRight, GraduationCap, X } from 'lucide-react'
 import { supabase } from './lib/supabase'
 import { Presentation } from './components/Presentation'
+import { ModalShell } from './components/ModalShell'
 import { ThemeStudio } from './components/ThemeStudio'
 import { DEFAULT_SLIDE_THEME, normalizeSlideTheme } from './lib/slideThemes'
 import type { SlideTheme } from './lib/slideThemes'
@@ -327,16 +328,15 @@ export default function App(){
           />}
       </main>
     </div>
-    {templateLibraryOpen && lesson && canEdit && <div className="f2-overlay" role="dialog" aria-modal="true" aria-label="Biblioteca de templates">
-      <div className="f2-overlay-dialog"><TemplateLibrary
+    {templateLibraryOpen && lesson && canEdit && <ModalShell label="Biblioteca de templates"
+      onClose={()=>setTemplateLibraryOpen(false)}><TemplateLibrary
         records={presentationTemplates} lessons={ownedLessons} currentLesson={lesson}
         previewMarkdown={slides[Math.min(previewPage,slides.length-1)]?.markdown}
         canWrite={canWrite} onClose={()=>setTemplateLibraryOpen(false)}
         onCreate={createPresentationTemplate} onUpdate={updatePresentationTemplate}
         onDuplicate={duplicatePresentationTemplate} onDelete={deletePresentationTemplate}
         onApply={applyPresentationTemplate} onUploadImage={uploadBackground} onNotify={setMessage}
-      /></div>
-    </div>}
+      /></ModalShell>}
     {themeStudioOpen && lesson && canEdit &&
       <ThemeStudio initial={colors} previewMarkdown={previewSlide.markdown}
         savedThemes={templates} onClose={()=>setThemeStudioOpen(false)}

@@ -21,3 +21,22 @@ jobs:
           VITE_SUPABASE_URL: https://example.supabase.co
           VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_placeholder
       - run: npm run skills:check
+  e2e:
+    # Playwright 1.56 supports Ubuntu 24.04; runner default Ubuntu 26 is not supported.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --no-audit --no-fund
+      - run: npm run test:e2e
+      - name: Evidências E2E em falhas
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-f5
+          path: |
+            test-results/
+            playwright-report/
+          if-no-files-found: ignore
