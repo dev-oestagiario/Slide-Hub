@@ -87,7 +87,7 @@ export function useLessonEditor({lesson,canEdit,autoBreak,userId,onPersist,onNot
     setMarkdownState(value);setStatus('pending')
   },[])
   current.current={lessonId:lesson?.id||'',title,markdown,layout}
-  const dirty=Boolean(lesson&&loadedFor===lesson.id&&saved&&saved.lessonId===lesson.id&&!same(current.current,saved))
+  const dirty=Boolean(canEdit&&lesson&&loadedFor===lesson.id&&saved&&saved.lessonId===lesson.id&&!same(current.current,saved))
   const checkpoint=useCallback(()=>{
     history.current.push(current.current.layout)
     if(history.current.length>50)history.current.shift()

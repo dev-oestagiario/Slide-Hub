@@ -107,7 +107,7 @@ export function reconcileEditorLayout(
   })
   // A new paragraph should never inherit a saved position just because it appears
   // near an old paragraph. Match changed content by similarity first.
-  const terms=(text:string)=>new Set(signature(text).split(/[^\\p{L}\\p{N}]+/u).filter(Boolean))
+  const terms=(text:string)=>new Set(signature(text).split(/[^\p{L}\p{N}]+/u).filter(Boolean))
   const similarity=(left:string,right:string)=>{
     const a=terms(left),b=terms(right)
     if(!a.size||!b.size)return 0

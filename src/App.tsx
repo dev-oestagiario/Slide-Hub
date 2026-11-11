@@ -78,7 +78,7 @@ export default function App(){
   const noteBackfill=useRef(new Set<string>())
   useEffect(()=>{noteBackfill.current.clear()},[lessonId])
   useEffect(()=>{
-    if(!supabase||!lessonId||!canEdit||dirty||saveStatus!=='saved')return
+    if(!supabase||!lessonId||!canEdit||!editor.ready||dirty||saveStatus!=='saved')return
     for(const note of notes){
       const stableKey=slideModels[note.slide_index]?.key
       if(!note.id||note.slide_key||!stableKey||noteBackfill.current.has(note.id))continue
@@ -89,7 +89,7 @@ export default function App(){
           if(data)setNotes(items=>items.map(item=>item.id===note.id?data as Note:item))
         })
     }
-  },[notes,slideModels,lessonId,canEdit,dirty,saveStatus])
+  },[notes,slideModels,lessonId,canEdit,editor.ready,dirty,saveStatus])
   useEffect(()=>{
     if(!dirty)return
     const warn=(event:BeforeUnloadEvent)=>{event.preventDefault();event.returnValue=''}
@@ -287,7 +287,7 @@ export default function App(){
           <LessonWorkspace
             lesson={lesson} title={title} markdown={markdown} mode={mode}
             canEdit={canEdit} busy={busy} dirty={dirty} autoBreak={autoBreak}
-            saveStatus={saveStatus} activeTemplate={activePresentation}
+            saveStatus={saveStatus} editorReady={editor.ready} activeTemplate={activePresentation}
             editorLayout={editor.layout} editorSlides={slideModels}
             onUpdateGeometry={editor.updateGeometry} onResetGeometry={editor.resetGeometry}
             onGeometryStart={editor.checkpoint} onUndoGeometry={editor.undo}

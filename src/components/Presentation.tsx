@@ -9,21 +9,25 @@ import type { Slide } from '../lib/slideParser'
 import type { PresentationTemplateConfig } from '../features/templates/model'
 import { inferSlideKind, visualThemeForSlide } from '../features/templates/model'
 import { TemplateChrome } from '../features/templates/TemplateChrome'
+import { SlideBlockCanvas } from '../features/editor/SlideBlockCanvas'
+import type { EditorSlide, EditorLayout } from '../features/editor/layoutModel'
 
 export type PresentationTheme = SlideTheme
 
-type SpeakerNote = { slide_index: number; notes: string }
+type SpeakerNote = { slide_index: number; slide_key?: string | null; notes: string }
 type PresentationProps = {
   slides: Slide[]
   title: string
   theme: PresentationTheme
   template?: PresentationTemplateConfig | null
   notes: SpeakerNote[]
+  editorLayout?: EditorLayout
+  editorSlides?: EditorSlide[]
   canEdit: boolean
   onClose: () => void
 }
 
-export function Presentation({ slides, title, theme, template, notes, canEdit, onClose }: PresentationProps) {
+export function Presentation({ slides, title, theme, template, notes, editorLayout, editorSlides, canEdit, onClose }: PresentationProps) {
   const [index, setIndex] = useState(0)
   const [showSolution, setShowSolution] = useState(false)
   const [speakerMode, setSpeakerMode] = useState(false)
@@ -69,6 +73,10 @@ export function Presentation({ slides, title, theme, template, notes, canEdit, o
   const slideKind=inferSlideKind(slide,index)
   const colors = visualThemeForSlide(template ?? null,themeForSlide(theme,slide.theme),slideKind)
   const followingSlide = slides[index + 1]
+  const currentEditorSlide=editorSlides?.[index]
+  const manuallyArranged=Boolean(currentEditorSlide?.blocks.some(block=>editorLayout?.overrides[block.id]))
+  const currentNote=notes.find(note=>note.slide_key&&note.slide_key===currentEditorSlide?.key)
+    ??notes.find(note=>!note.slide_key&&note.slide_index===index)
 
   function advance(direction: 'previous' | 'next') {
     setIndex(current => direction === 'next' ? nextSlide(current, slides.length) : previousSlide(current))
@@ -110,7 +118,11 @@ export function Presentation({ slides, title, theme, template, notes, canEdit, o
           template?.footer.text||template?.footer.showPageNumber?'f3-with-footer':''
         ].filter(Boolean).join(' ')} style={{ '--slide-accent': colors.accent } as CSSProperties}>
           {!template?.branding.showHeader&&<span className="eyebrow">SLIDEHUB / {String(index + 1).padStart(2, '0')}</span>}
-          <div className="slide-text"><MarkdownView markdown={slide.markdown} /></div>
+          <div className={'slide-text '+(manuallyArranged?'f4-manual-slide':'')}>
+            {currentEditorSlide&&editorLayout
+              ?<SlideBlockCanvas slide={currentEditorSlide} layout={editorLayout}/>
+              :<MarkdownView markdown={slide.markdown}/>}
+          </div>
           {slide.answer && (
             <div className="slide-answer">
               {showSolution && <div><strong>Gabarito</strong><MarkdownView markdown={slide.answer} /></div>}
@@ -126,7 +138,7 @@ export function Presentation({ slides, title, theme, template, notes, canEdit, o
             <h3>Notas do apresentador</h3>
             <p>Tempo: {String(Math.floor(elapsed / 60)).padStart(2, '0')}:{String(elapsed % 60).padStart(2, '0')}</p>
             <h4>Notas privadas</h4>
-            <p>{notes.find(note => note.slide_index === index)?.notes || 'Sem notas para este slide.'}</p>
+            <p>{currentNote?.notes || 'Sem notas para este slide.'}</p>
             <h4>Próximo slide</h4>
             {followingSlide ? <div className="speaker-next"><MarkdownView markdown={followingSlide.markdown} /></div> : <p>Fim da apresentação</p>}
           </aside>

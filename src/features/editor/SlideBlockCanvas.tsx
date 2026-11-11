@@ -122,7 +122,7 @@ export function SlideBlockCanvas({slide,layout,editable=false,arranging=false,on
           </div>
         })}
     </div>
-    {arranging && (collisionCount>0||overflow>0) && <div className="f4-collision" role="status">
+    {(arranging||hasOverrides) && (collisionCount>0||overflow>0) && <div className="f4-collision" role="status">
       <AlertTriangle size={14}/> {collisionCount>0?collisionCount+' sobreposição(ões) entre blocos fixados. ':''}
       {overflow>0?overflow+' bloco(s) não cabem na área escolhida. ':''}
       Amplie o bloco ou restaure o layout automático.
