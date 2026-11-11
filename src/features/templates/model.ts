@@ -1,6 +1,6 @@
-import { normalizeSlideTheme, THEME_PRESETS } from '../../lib/slideThemes'
-import type { SlideTheme } from '../../lib/slideThemes'
-import type { Slide, SlideLayout } from '../../lib/slideParser'
+import { normalizeSlideTheme, THEME_PRESETS } from '../../lib/slideThemes.ts'
+import type { SlideTheme } from '../../lib/slideThemes.ts'
+import type { Slide, SlideLayout } from '../../lib/slideParser.ts'
 
 export type LayoutRules = { cover: SlideLayout; content: SlideLayout; exercise: SlideLayout }
 export type PresentationTemplateConfig = {
