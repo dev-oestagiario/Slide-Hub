@@ -7,6 +7,8 @@ import { slideBackgroundStyle, themeForSlide } from '../lib/slideThemes'
 import type { SlideTheme } from '../lib/slideThemes'
 import type { Slide } from '../lib/slideParser'
 import type { PresentationTemplateConfig } from '../features/templates/model'
+import { inferSlideKind, visualThemeForSlide } from '../features/templates/model'
+import { TemplateChrome } from '../features/templates/TemplateChrome'
 
 export type PresentationTheme = SlideTheme
 
@@ -64,7 +66,8 @@ export function Presentation({ slides, title, theme, template, notes, canEdit, o
 
   const slide = slides[index] ?? slides[0]
   if (!slide) return null
-  const colors = themeForSlide(theme,slide.theme)
+  const slideKind=inferSlideKind(slide,index)
+  const colors = visualThemeForSlide(template,themeForSlide(theme,slide.theme),slideKind)
   const followingSlide = slides[index + 1]
 
   function advance(direction: 'previous' | 'next') {
@@ -99,8 +102,14 @@ export function Presentation({ slides, title, theme, template, notes, canEdit, o
         </div>
       </header>
       <div className={'slide-layout ' + (speakerMode ? 'teacher-view' : '')}>
-        <section className={'slide-body layout-' + slide.layout} style={{ '--slide-accent': colors.accent } as CSSProperties}>
-          <span className="eyebrow">SLIDEHUB / {String(index + 1).padStart(2, '0')}</span>
+        <section className={[
+          'slide-body','layout-'+slide.layout,
+          template?'f3-presentation-body':'',
+          template?'f3-density-'+template.density:'',
+          template?.branding.showHeader?'f3-with-header':'',
+          template?.footer.text||template?.footer.showPageNumber?'f3-with-footer':''
+        ].filter(Boolean).join(' ')} style={{ '--slide-accent': colors.accent } as CSSProperties}>
+          {!template?.branding.showHeader&&<span className="eyebrow">SLIDEHUB / {String(index + 1).padStart(2, '0')}</span>}
           <div className="slide-text"><MarkdownView markdown={slide.markdown} /></div>
           {slide.answer && (
             <div className="slide-answer">
@@ -110,10 +119,7 @@ export function Presentation({ slides, title, theme, template, notes, canEdit, o
               </button>
             </div>
           )}
-          {template && <div className="f2-presentation-footer">
-            <span>{template.footer.text}</span>
-            {template.footer.showPageNumber&&<span>{String(index+1).padStart(2,'0')} / {String(slides.length).padStart(2,'0')}</span>}
-          </div>}
+          {template&&<TemplateChrome config={template} index={index} total={slides.length}/>}
         </section>
         {canEdit && speakerMode && (
           <aside className="speaker-panel">
