@@ -29,6 +29,13 @@ export function parseSlides(source:string,breakOnH2=true):Slide[]{
       else if(fence[1][0]===fenceMark[0]&&fence[1].length>=fenceMark.length)inFence=false
     }
     if(!inFence&&!fence){
+      // Conteúdo do gabarito permanece privado: títulos e diretivas aqui não criam slides.
+      // Aceita gabaritos sem fechamento sem expô-los acidentalmente no corpo da aula.
+      if(block==='answer'){
+        if(/^:::\s*$/.test(line)){block='body';continue}
+        answer.push(line)
+        continue
+      }
       const directiveMatch=line.match(directive)
       if(directiveMatch){
         flush()
@@ -47,4 +54,12 @@ export function parseSlides(source:string,breakOnH2=true):Slide[]{
   }
   flush()
   return slides.length?slides:[{id:0,markdown:'# Aula sem conteúdo\nEscreva a primeira seção no editor.',answer:'',layout:'center',exercise:false}]
+}
+
+/** Apostila derivada do mesmo parser que protege gabaritos nos slides.
+ * Evita remoção por regex, que expunha respostas em blocos sem fechamento.
+ */
+export function articleMarkdown(source:string):string {
+  if(!source.trim())return ''
+  return parseSlides(source,false).map(slide=>slide.markdown).filter(Boolean).join('\n\n')
 }
