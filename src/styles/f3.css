@@ -1,0 +1,101 @@
+/* F3 — guided template studio, content-first presentation design */
+.f3-editor-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding:5px;background:#eef3f2;border:1px solid #e1eae7;border-radius:11px;margin:7px 0 8px}
+.f3-editor-steps button{min-width:0;padding:11px 8px;border-radius:8px;color:#647c79;background:transparent;font-size:11px;font-weight:740;text-align:center}
+.f3-editor-steps button:hover{color:#154f48;background:#f5faf8}
+.f3-editor-steps button.selected{color:#0f766e;background:#fff;box-shadow:0 1px 5px #123c351a}
+.f3-editor-section{display:flex;flex-direction:column;gap:15px;min-width:0}
+.f3-editor-section>label{display:flex;flex-direction:column;gap:7px;font-size:12px;color:#436267;font-weight:710}
+.f3-editor-section>h3{font-size:13px;font-weight:760;color:#264746;margin:7px 0 0;border-top:1px solid #edf1ef;padding-top:17px}
+.f3-editor-section>h3:first-child{border-top:0;padding-top:0}
+.f3-editor-section input:not([type=color]):not([type=checkbox]):not([type=file]):not([type=range]),.f3-editor-section select{
+ width:100%;min-width:0;background:#fff;color:#294649;border:1px solid #d9e5e3;border-radius:9px;padding:11px 12px;font-size:12px
+}
+.f3-editor-section input[type=range]{width:100%;accent-color:#0f766e}
+.f3-section-description,.f3-hint{margin:0;color:#6b8984;font-size:11px;line-height:1.7}
+.f3-hint{border:1px solid #deece6;border-radius:9px;background:#f4faf7;padding:10px 12px}
+.f3-layout-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.f3-layout-option{min-width:0;border:1px solid #dde7e5;border-radius:11px;background:#fff;padding:10px;display:flex;flex-direction:column;gap:9px}
+.f3-layout-preview{display:flex;flex-direction:column;align-items:flex-start;gap:6px;min-height:64px;padding:11px;border-radius:8px;text-align:left;background:#f5f9f7;color:#4e6b66;border:1px solid transparent}
+.f3-layout-preview strong{font-size:12px;color:#224c46;font-weight:760}
+.f3-layout-preview small{font-size:10px;color:#78928b;line-height:1.5}
+.f3-layout-preview.active{background:#eaf7f1;border-color:#9bccc0}
+.f3-layout-select{font-size:10px;font-weight:730;color:#64827c;display:grid;gap:6px;line-height:1.4}
+.f3-layout-select select{min-width:0;font-size:11px;padding:9px 8px}
+.f3-media-field{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:12px;background:#f8fbfa;border:1px solid #e5eeeb;border-radius:10px}
+.f3-media-field>div{min-width:0;flex:1 1 155px;display:flex;flex-direction:column;gap:5px}
+.f3-media-field strong{font-size:12px;color:#345d56}
+.f3-media-field small{font-size:10px;line-height:1.5;color:#7e9690}
+.f3-media-field .f2-image-upload{margin:0;min-height:38px;padding:9px 11px;font-size:11px}
+.f3-remove{font-size:11px;font-weight:670;color:#aa4848;background:#fff1ef;padding:10px;border-radius:8px}
+.f3-remove:hover{background:#fbe2de}
+.f3-preview-chooser{display:flex;gap:5px;flex-wrap:wrap;margin:10px 0 15px}
+.f3-preview-chooser button{font-size:10px;font-weight:680;padding:7px 9px;color:#637f7b;background:#fff;border:1px solid #dee9e6;border-radius:7px}
+.f3-preview-chooser button.active{background:#dcf2eb;color:#0d655a;border-color:#a8d8cb}
+.f3-preview-slide{position:relative;isolation:isolate;min-width:0;display:flex;flex-direction:column;justify-content:center;
+ padding:clamp(23px,2.6vw,40px);overflow:hidden}
+.f3-preview-slide.f3-with-header{padding-top:clamp(42px,4.5vw,61px)}
+.f3-preview-slide.f3-with-footer{padding-bottom:clamp(29px,3.1vw,44px)}
+.f3-preview-slide .f2-preview-content{max-height:100%;overflow:auto;min-width:0}
+.f3-preview-slide .f2-preview-content img{display:block;max-width:100%;max-height:100px;object-fit:contain}
+.f3-preview-slide.f2-layout-center .f2-preview-content{text-align:center;align-self:center}
+.f3-preview-slide.f2-layout-split .f2-preview-content{columns:2;column-gap:18px}
+.f3-preview-slide.f2-layout-split .f2-preview-content img{max-height:80px}
+.f3-preview-slide.f3-density-comfortable .f2-preview-content p,.f3-preview-slide.f3-density-comfortable .f2-preview-content li{font-size:clamp(11px,1.1vw,17px);line-height:1.7}
+.f3-preview-slide.f3-density-compact .f2-preview-content p,.f3-preview-slide.f3-density-compact .f2-preview-content li{font-size:clamp(9px,.8vw,13px);line-height:1.42}
+.f3-preview-slide .f2-preview-content table{font-size:10px;border-collapse:collapse;width:100%;table-layout:auto}
+.f3-preview-slide .f2-preview-content th,.f3-preview-slide .f2-preview-content td{border:1px solid currentColor;padding:4px;font-size:inherit}
+.f3-preview-slide .f2-preview-content blockquote{border-left:3px solid currentColor;padding-left:10px;opacity:.95;margin:5px 0}
+.f3-preview-slide.f3-with-header .f2-preview-content{padding-top:4px}
+.f3-brand-header{position:absolute;top:6%;left:7%;right:7%;display:flex;align-items:center;gap:10px;
+ color:inherit;font-size:clamp(8px,.8vw,12px);font-weight:790;letter-spacing:.8px;line-height:1.25;
+ min-height:16px;max-height:16%;overflow:hidden}
+.f3-brand-header.f3-brand-header-right{flex-direction:row-reverse}
+.f3-brand-header img{display:block;max-width:27%;max-height:clamp(18px,2vw,36px);width:auto;height:auto;object-fit:contain}
+.f3-accent-rule{position:absolute;top:18%;left:7%;right:7%;height:2px;border-radius:4px;opacity:.8}
+.f3-brand-footer{position:absolute;bottom:5%;left:7%;right:7%;display:flex;justify-content:space-between;
+ align-items:center;gap:12px;font-size:clamp(8px,.75vw,13px);font-weight:680;line-height:1.35;opacity:.84}
+.f3-brand-footer span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.f3-lesson-preview{position:relative;isolation:isolate;display:flex;flex-direction:column;justify-content:center;
+ padding:clamp(19px,3vw,38px);overflow:auto;columns:auto!important}
+.f3-lesson-preview.f3-with-header{padding-top:clamp(38px,4.5vw,65px)}
+.f3-lesson-preview.f3-with-footer{padding-bottom:clamp(32px,4vw,56px)}
+.f3-lesson-preview .f3-preview-content{min-width:0;width:100%;max-height:100%;overflow:auto}
+.f3-lesson-preview.f3-layout-center .f3-preview-content{text-align:center;align-self:center}
+.f3-lesson-preview.f3-layout-split .f3-preview-content{columns:2;column-gap:20px}
+.f3-lesson-preview .f3-preview-content img{max-width:100%;height:auto;max-height:240px;object-fit:contain}
+.f1-preview-stage .mini-slide.f3-density-comfortable .f3-preview-content p,
+.f1-preview-stage .mini-slide.f3-density-comfortable .f3-preview-content li{font-size:clamp(12px,1.2vw,18px);line-height:1.72}
+.f1-preview-stage .mini-slide.f3-density-compact .f3-preview-content p,
+.f1-preview-stage .mini-slide.f3-density-compact .f3-preview-content li{font-size:clamp(10px,.9vw,14px);line-height:1.43}
+.f3-presentation-body{position:relative;isolation:isolate;min-height:0;overflow:auto}
+.f3-presentation-body.f3-with-header{padding-top:clamp(76px,9vw,145px)}
+.f3-presentation-body.f3-with-footer{padding-bottom:clamp(67px,7vw,130px)}
+.f3-presentation-body .f3-brand-header{top:5%;font-size:clamp(13px,1.1vw,20px)}
+.f3-presentation-body .f3-brand-header img{max-height:clamp(28px,3vw,55px)}
+.f3-presentation-body .f3-brand-footer{font-size:clamp(11px,1.2vw,19px);bottom:5%}
+.f3-presentation-body .f3-accent-rule{top:15%;height:3px}
+.f3-presentation-body.f3-density-comfortable .slide-text p,
+.f3-presentation-body.f3-density-comfortable .slide-text li{font-size:clamp(19px,2.5vw,36px);line-height:1.7}
+.f3-presentation-body.f3-density-compact .slide-text p,
+.f3-presentation-body.f3-density-compact .slide-text li{font-size:clamp(15px,1.8vw,26px);line-height:1.48}
+.f3-presentation-body .slide-text img{max-width:100%;max-height:60vh;object-fit:contain}
+.f3-presentation-body .slide-text blockquote{border-left:4px solid var(--slide-accent);padding-left:18px;margin-left:0}
+@media (max-width:850px){
+ .f3-editor-steps button{font-size:10px;padding:9px 5px}
+ .f3-layout-grid{grid-template-columns:1fr}
+ .f3-layout-option{flex-direction:row;align-items:center}
+ .f3-layout-preview{flex:1;min-height:60px}
+ .f3-layout-select{flex:1}
+ .f3-preview-slide.f2-layout-split .f2-preview-content{columns:1}
+ .f3-lesson-preview.f3-layout-split .f3-preview-content{columns:1}
+ .f3-presentation-body .f3-accent-rule{top:16%}
+}
+@media(max-width:450px){
+ .f3-editor-steps{grid-template-columns:1fr;gap:3px}
+ .f3-layout-option{flex-direction:column;align-items:stretch}
+ .f3-preview-chooser{gap:3px}
+ .f3-preview-chooser button{font-size:10px;padding:6px}
+ .f3-lesson-preview .f3-brand-header{font-size:8px}
+ .f3-brand-header img{max-height:20px}
+}
+@media(prefers-reduced-motion:reduce){.f3-editor-steps button{transition:none}}
