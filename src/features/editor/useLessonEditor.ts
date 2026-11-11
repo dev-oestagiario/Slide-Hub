@@ -30,6 +30,7 @@ export function useLessonEditor({lesson,canEdit,autoBreak,userId,onPersist,onNot
   const [layout,setLayout]=useState<EditorLayout>(emptyLayout)
   const [saved,setSaved]=useState<Saved|null>(null)
   const [status,setStatus]=useState<DraftStatus>('saved')
+  const [loadedFor,setLoadedFor]=useState('')
   const [historyNumber,setHistoryNumber]=useState(0)
   const current=useRef<Snapshot>({lessonId:'',title:'',markdown:'',layout:emptyLayout()})
   const savedRef=useRef<Saved|null>(null)
@@ -52,14 +53,15 @@ export function useLessonEditor({lesson,canEdit,autoBreak,userId,onPersist,onNot
     setLayout(next)
     setStatus('saved')
     history.current=[];redoHistory.current=[];setHistoryNumber(value=>value+1)
+    setLoadedFor(lesson?.id||'')
     if(!lesson||!canEdit||!userId)return
     try{
       const raw=localStorage.getItem(cacheKey(userId,lesson.id))
       if(!raw)return
       const cached=JSON.parse(raw) as {title?:string;markdown?:string;layout?:unknown;revision?:number}
       if(typeof cached.title!=='string'||typeof cached.markdown!=='string')return
-      if(cached.title===lesson.title&&cached.markdown===lesson.markdown)return
-      if(window.confirm('Encontramos um rascunho local desta aula. Deseja recuperar o texto?')){
+      if(cached.title===lesson.title&&cached.markdown===lesson.markdown&&layoutsEqual(normalizeEditorLayout(cached.layout),state))return
+      if(window.confirm('Encontramos um rascunho local desta aula. Deseja recuperar o texto e o layout?')){
         setTitleState(cached.title)
         setMarkdownState(cached.markdown)
         setLayout(reconcileEditorLayout(parseSlides(cached.markdown,autoBreak),cached.layout))
@@ -71,12 +73,12 @@ export function useLessonEditor({lesson,canEdit,autoBreak,userId,onPersist,onNot
   },[lesson?.id])
 
   useEffect(()=>{
-    if(!lesson)return
+    if(!lesson||loadedFor!==lesson.id)return
     setLayout(previous=>{
       const next=reconcileEditorLayout(parsed,previous)
       return layoutsEqual(next,previous)?previous:next
     })
-  },[parsed,lesson?.id])
+  },[parsed,lesson?.id,loadedFor])
 
   const setTitle=useCallback((value:string)=>{
     setTitleState(value);setStatus('pending')
@@ -85,7 +87,7 @@ export function useLessonEditor({lesson,canEdit,autoBreak,userId,onPersist,onNot
     setMarkdownState(value);setStatus('pending')
   },[])
   current.current={lessonId:lesson?.id||'',title,markdown,layout}
-  const dirty=Boolean(lesson&&saved&&saved.lessonId===lesson.id&&!same(current.current,saved))
+  const dirty=Boolean(lesson&&loadedFor===lesson.id&&saved&&saved.lessonId===lesson.id&&!same(current.current,saved))
   const checkpoint=useCallback(()=>{
     history.current.push(current.current.layout)
     if(history.current.length>50)history.current.shift()
@@ -120,7 +122,7 @@ export function useLessonEditor({lesson,canEdit,autoBreak,userId,onPersist,onNot
   const canRedo=historyNumber>=0&&redoHistory.current.length>0
 
   async function flush():Promise<boolean>{
-    if(!canEdit||!supabase||!lesson||!userId)return false
+    if(!canEdit||!supabase||!lesson||!userId||loadedFor!==lesson.id)return false
     if(saving.current)return saving.current
     const target=lesson.id
     const job=(async()=>{
@@ -159,7 +161,7 @@ export function useLessonEditor({lesson,canEdit,autoBreak,userId,onPersist,onNot
   }
 
   useEffect(()=>{
-    if(!lesson||!dirty||!canEdit||!userId)return
+    if(!lesson||loadedFor!==lesson.id||!dirty||!canEdit||!userId)return
     try{
       localStorage.setItem(cacheKey(userId,lesson.id),JSON.stringify({
         title,markdown,layout,revision:savedRef.current?.revision??0
@@ -170,10 +172,10 @@ export function useLessonEditor({lesson,canEdit,autoBreak,userId,onPersist,onNot
     return ()=>window.clearTimeout(timer)
     // flush uses refs to serialize latest version, not a stale render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  },[lesson?.id,canEdit,userId,dirty,title,markdown,layout,status])
+  },[lesson?.id,loadedFor,canEdit,userId,dirty,title,markdown,layout,status])
 
   return {
-    title,markdown,layout,parsed,slideModel,dirty,status,
+    title,markdown,layout,parsed,slideModel,dirty,status,ready:loadedFor===lesson?.id,
     setTitle,setMarkdown,updateGeometry,resetGeometry,checkpoint,undo,redo,canUndo,canRedo,
     save:flush
   }

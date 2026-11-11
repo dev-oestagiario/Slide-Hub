@@ -105,17 +105,31 @@ export function reconcileEditorLayout(
     const match=matches.find(candidate=>!used.has(candidate.id))
     if(match){assigned[index]={...block,id:match.id};used.add(match.id)}
   })
-  next.forEach((block,index)=>{
-    if(assigned[index])return
-    const candidates=previous.blocks.map((candidate,oldIndex)=>({candidate,oldIndex}))
+  // A new paragraph should never inherit a saved position just because it appears
+  // near an old paragraph. Match changed content by similarity first.
+  const terms=(text:string)=>new Set(signature(text).split(/[^\\p{L}\\p{N}]+/u).filter(Boolean))
+  const similarity=(left:string,right:string)=>{
+    const a=terms(left),b=terms(right)
+    if(!a.size||!b.size)return 0
+    let shared=0
+    for(const token of a)if(b.has(token))shared++
+    return shared/Math.max(a.size,b.size)
+  }
+  for(const [index,block] of next.entries()){
+    if(assigned[index])continue
+    const remaining=previous.blocks.map((candidate,oldIndex)=>({candidate,oldIndex}))
       .filter(item=>!used.has(item.candidate.id)&&item.candidate.kind===block.kind)
-      .sort((a,b)=>{
-        const rank=(item:typeof a)=>Math.abs(item.oldIndex-index)+Math.abs(item.candidate.slideIndex-block.slideIndex)*.2
-        return rank(a)-rank(b)
-      })
-    const match=candidates[0]?.candidate
-    if(match){assigned[index]={...block,id:match.id};used.add(match.id)}
-  })
+    const unmatchedNew=next.filter((other,i)=>!assigned[i]&&other.kind===block.kind).length
+    const ranked=remaining.map(item=>({
+      ...item,similarity:similarity(item.candidate.markdown,block.markdown),
+      distance:Math.abs(item.oldIndex-index)+Math.abs(item.candidate.slideIndex-block.slideIndex)*.25
+    })).sort((a,b)=>b.similarity-a.similarity||a.distance-b.distance)
+    const best=ranked[0]
+    const uniqueRename=remaining.length===1&&unmatchedNew===1&&best?.distance<=2
+    if(best&&(best.similarity>=.4||uniqueRename)){
+      assigned[index]={...block,id:best.candidate.id};used.add(best.candidate.id)
+    }
+  }
   const blocks=next.map((block,index)=>{
     if(assigned[index])return assigned[index] as SlideBlock
     let id=newId()

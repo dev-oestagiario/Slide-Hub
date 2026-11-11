@@ -11,11 +11,12 @@ type Props={
   editable?:boolean
   arranging?:boolean
   onGeometry?: (id:string, rect:BlockRect)=>void
+  onGestureStart?:()=>void
   onReset?: (id:string)=>void
   onOverflow?: (count:number)=>void
 }
 type Interaction={ id:string; operation:'move'|'resize'; startX:number; startY:number; origin:BlockRect; width:number;height:number }
-export function SlideBlockCanvas({slide,layout,editable=false,arranging=false,onGeometry,onReset,onOverflow}:Props){
+export function SlideBlockCanvas({slide,layout,editable=false,arranging=false,onGeometry,onGestureStart,onReset,onOverflow}:Props){
   const area=useRef<HTMLDivElement>(null)
   const interaction=useRef<Interaction|null>(null)
   const [overflow,setOverflow]=useState(0)
@@ -59,6 +60,7 @@ export function SlideBlockCanvas({slide,layout,editable=false,arranging=false,on
     const rect=layout.overrides[block.id]||(node?initialRect(block,node):null)
     const stage=area.current
     if(!rect||!stage)return
+    onGestureStart?.()
     interaction.current={id:block.id,operation,startX:event.clientX,startY:event.clientY,
       origin:rect,width:stage.getBoundingClientRect().width||1,height:stage.getBoundingClientRect().height||1}
     event.currentTarget.setPointerCapture(event.pointerId)
@@ -87,7 +89,7 @@ export function SlideBlockCanvas({slide,layout,editable=false,arranging=false,on
     const proposed=operation==='move'?{...origin,x:origin.x+dx,y:origin.y+dy}
       :{...origin,w:origin.w+dx,h:origin.h+dy}
     const rect=normalizeRect(proposed)
-    if(rect)onGeometry?.(block.id,rect)
+    if(rect){onGestureStart?.();onGeometry?.(block.id,rect)}
   }
   return <>
     <div className={'f4-content-area '+(arranging?'f4-arranging':'')} ref={area}>
