@@ -12,7 +12,8 @@ export function useModalFocus(dialog:RefObject<HTMLElement|null>, enabled=true){
     previous.current=document.activeElement instanceof HTMLElement?document.activeElement:null
     const getFocusables=()=>Array.from(element.querySelectorAll<HTMLElement>(focusable))
       .filter(item=>item.getClientRects().length>0 && item.getAttribute('aria-hidden')!=='true')
-    const initial=element.querySelector<HTMLElement>('[data-modal-autofocus]')??getFocusables()[0]??element
+    const initial=element.hasAttribute('data-modal-autofocus')?element:
+      element.querySelector<HTMLElement>('[data-modal-autofocus]')??getFocusables()[0]??element
     initial.focus()
     const onTab=(event:KeyboardEvent)=>{
       if(event.key!=='Tab')return
