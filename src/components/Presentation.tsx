@@ -67,7 +67,7 @@ export function Presentation({ slides, title, theme, template, notes, canEdit, o
   const slide = slides[index] ?? slides[0]
   if (!slide) return null
   const slideKind=inferSlideKind(slide,index)
-  const colors = visualThemeForSlide(template,themeForSlide(theme,slide.theme),slideKind)
+  const colors = visualThemeForSlide(template ?? null,themeForSlide(theme,slide.theme),slideKind)
   const followingSlide = slides[index + 1]
 
   function advance(direction: 'previous' | 'next') {
