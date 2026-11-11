@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 270" width="680" height="270" role="img" aria-label="Diagrama de três etapas">
+<rect width="680" height="270" rx="24" fill="#EFF6F4"/>
+<g font-family="Arial,sans-serif" font-weight="600" text-anchor="middle" fill="#154E4A">
+<rect x="28" y="71" width="170" height="128" rx="18" fill="#D4EAE3" stroke="#93BFB3"/>
+<rect x="255" y="71" width="170" height="128" rx="18" fill="#C3E3DE" stroke="#93BFB3"/>
+<rect x="482" y="71" width="170" height="128" rx="18" fill="#D4EAE3" stroke="#93BFB3"/>
+<text x="113" y="142" font-size="21">Entrada</text><text x="340" y="142" font-size="21">Processo</text><text x="567" y="142" font-size="21">Saída</text>
+</g><path d="M205 135 H247 M434 135 H476" stroke="#15776E" stroke-width="5" stroke-linecap="round"/>
+<path d="m236 125 12 10-12 10 M465 125 12 10-12 10" fill="none" stroke="#15776E" stroke-width="5" stroke-linecap="round"/>
+</svg>

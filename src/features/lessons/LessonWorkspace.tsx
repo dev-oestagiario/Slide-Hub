@@ -8,6 +8,8 @@ import { slideBackgroundStyle, themeForSlide } from '../../lib/slideThemes'
 import type { SlideTheme } from '../../lib/slideThemes'
 import type { Lesson } from '../courses/types'
 import type { PresentationTemplateConfig } from '../templates/model'
+import { inferSlideKind, visualThemeForSlide } from '../templates/model'
+import { TemplateChrome } from '../templates/TemplateChrome'
 
 type Mode = 'edit' | 'article'
 export type LessonWorkspaceProps = {
@@ -181,12 +183,16 @@ export function LessonWorkspace({
           </div>
         </header>
         <div className="f1-preview-stage">
-          <div className={'mini-slide f2-preview-layout-'+slide.layout} style={slideBackgroundStyle(themeForSlide(theme, slide.theme))}>
-            <MarkdownView markdown={slide.markdown}/>
-            {activeTemplate && <div className="f2-preview-lesson-footer">
-              <span>{activeTemplate.footer.text}</span>
-              {activeTemplate.footer.showPageNumber && <span>{String(page+1).padStart(2,'0')} / {String(slides.length).padStart(2,'0')}</span>}
-            </div>}
+          <div className={[
+            'mini-slide','f3-lesson-preview','f3-layout-'+slide.layout,
+            activeTemplate?'f3-density-'+activeTemplate.density:'',
+            activeTemplate?.branding.showHeader?'f3-with-header':'',
+            activeTemplate?.footer.text||activeTemplate?.footer.showPageNumber?'f3-with-footer':''
+          ].join(' ')} style={slideBackgroundStyle(themeForSlide(
+            visualThemeForSlide(activeTemplate,theme,inferSlideKind(slide,page)),slide.theme
+          ))}>
+            <div className="f3-preview-content"><MarkdownView markdown={slide.markdown}/></div>
+            {activeTemplate&&<TemplateChrome config={activeTemplate} index={page} total={slides.length}/>}
           </div>
           <div className="f1-preview-caption"><span>SLIDE {String(page+1).padStart(2,'0')}</span><span>Gerado do seu texto</span></div>
         </div>

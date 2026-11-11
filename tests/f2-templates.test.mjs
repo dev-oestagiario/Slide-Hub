@@ -18,7 +18,7 @@ test('F2: normalização mantém compatibilidade com temas simples', () => {
   assert.equal(old.layouts.cover,'center')
   assert.equal(old.layouts.content,'default')
   assert.equal(old.layouts.exercise,'center')
-  assert.equal(old.schemaVersion,1)
+  assert.equal(old.schemaVersion,2)
 })
 test('F2: layouts e rodapé inválidos não são propagados',()=>{
   const data=normalizePresentationTemplate({
@@ -55,7 +55,7 @@ test('F2: aplicar template altera apenas colunas visuais',()=>{
   assert.deepEqual(Object.keys(patch).sort(),['presentation_template_id','presentation_template_snapshot','template_id','theme_config'])
   assert.equal(patch.presentation_template_id,null)
   assert.deepEqual(patch.theme_config,choice.config.theme)
-  assert.equal(configFromSnapshot(patch.presentation_template_snapshot)?.schemaVersion,1)
+  assert.equal(configFromSnapshot(patch.presentation_template_snapshot)?.schemaVersion,2)
 })
 test('F2: snapshot não acompanha edição do template de origem',()=>{
   const original=BUILTIN_PRESENTATION_TEMPLATES[0].config
