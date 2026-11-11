@@ -74,3 +74,32 @@ npm run build
 CI em \`.github/workflows/ci.yml\`.
 
 **Limitações conhecidas:** ainda não existe exportação PPTX, extração visual de tema PPTX, modo offline, editor gráfico por blocos ou suporte multi-instituição. A experiência de navegação real precisa ser validada em ambiente com dependências instaladas e autenticação configurada.
+
+
+## Apresentação com um clique
+
+O professor escreve a aula em Markdown e clica em **Modo apresentação**. O conteúdo não precisa ser salvo primeiro: os slides são produzidos do texto que está no editor naquele momento. O botão tenta abrir tela cheia e mantém um modo de apresentação mesmo se o navegador bloquear fullscreen.
+
+- Cada cabeçalho `##` inicia outro slide (opção desativável).
+- `<!-- slide -->` cria uma quebra manual.
+- `<!-- slide: theme=dark layout=center -->` altera tema e disposição.
+- `:::exercise` e `:::answer` criam pergunta e resposta revelável.
+- Setas, espaço e PageUp/PageDown navegam; botão fechar sai da apresentação.
+- A prévia no editor permite navegar pelos slides antes de apresentar.
+- Somente o professor vê o modo com notas privadas e o próximo slide.
+
+## Publicação automática no GitHub Pages
+
+Arquivo: `.github/workflows/deploy-pages.yml`.
+
+O GitHub Actions instala dependências, executa testes, compila React/TypeScript/Vite com `base: '/Slide-Hub/'`, verifica o caminho dos assets e publica `dist/` no Pages a cada push na `main`.
+
+**Ativação única:** no GitHub, abra **Settings → Pages → Build and deployment → Source → GitHub Actions**. O GitHub Pages para repositórios privados depende de um plano que o suporte (como GitHub Pro/Team). O Pages hospeda o frontend estático; Supabase hospeda autenticação e dados. O deploy não converte o repositório em público, mas o site publicado pode ficar visível na web.
+
+**Variáveis de frontend:** o arquivo `.env.production` contém somente a URL e a chave **publicável** do Supabase Dev. Essas informações são intencionalmente públicas no JavaScript distribuído. Nunca insira uma chave `service_role`, uma senha ou um token secreto em arquivos `VITE_*`.
+
+Para confirmação por e-mail, configure em **Supabase → Authentication → URL Configuration**:
+- Site URL: `https://dev-oestagiario.github.io/Slide-Hub/`
+- URL de redirecionamento permitida: `https://dev-oestagiario.github.io/Slide-Hub/**`
+
+Endereço esperado após a primeira publicação bem-sucedida: `https://dev-oestagiario.github.io/Slide-Hub/`.
