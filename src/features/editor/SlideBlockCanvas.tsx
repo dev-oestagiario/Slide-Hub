@@ -99,6 +99,36 @@ export function SlideBlockCanvas({
     })??{x:.1,y:.1,w:.7,h:.24,z:4}
   }
 
+  // The intrinsic size of an unpinned element can change with images, zoom or
+  // viewport width. Keep the overlay in sync without persisting a new override.
+  useEffect(()=>{
+    if(!arranging||!selection||!selectedBlock||layout.overrides[selection.id])return
+    const stage=area.current
+    const node=Array.from(stage?.querySelectorAll<HTMLElement>('[data-slide-block]')??[])
+      .find(item=>item.dataset.slideBlock===selection.id)
+    if(!stage||!node)return
+    let pending=0
+    const measure=()=>{
+      pending=0
+      if(dragging.current)return
+      const rect=initial(node)
+      const previous=selection.rect
+      if(Math.max(Math.abs(rect.x-previous.x),Math.abs(rect.y-previous.y),
+        Math.abs(rect.w-previous.w),Math.abs(rect.h-previous.h))>.002){
+        onSelect?.({id:selection.id,rect})
+      }
+    }
+    const schedule=()=>{if(!pending)pending=requestAnimationFrame(measure)}
+    const observer=typeof ResizeObserver==='undefined'?null:new ResizeObserver(schedule)
+    observer?.observe(stage);observer?.observe(node)
+    node.addEventListener('load',schedule,true)
+    schedule()
+    return ()=>{
+      if(pending)cancelAnimationFrame(pending)
+      observer?.disconnect();node.removeEventListener('load',schedule,true)
+    }
+  },[arranging,selection,selectedBlock,layout.overrides,onSelect])
+
   function select(block:SlideBlock,node:HTMLElement){
     const rect=layout.overrides[block.id]??initial(node)
     onSelect?.({id:block.id,rect})
@@ -117,6 +147,7 @@ export function SlideBlockCanvas({
     const rect=select(block,node)
     dragging.current={id:block.id,mode,pointer:event.pointerId,x:event.clientX,y:event.clientY,
       initial:rect,width:stage.width||1,height:stage.height||1,changed:false,proportional:block.kind==='image'}
+    event.currentTarget.focus({preventScroll:true})
     event.currentTarget.setPointerCapture(event.pointerId)
   }
 
