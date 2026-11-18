@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, PointerEvent as ReactPointerEvent, KeyboardEvent as ReactKeyboardEvent } from 'react'
-import { AlertTriangle, ArrowDownRight, GripVertical, RotateCcw } from 'lucide-react'
+import { AlertTriangle } from 'lucide-react'
 import { MarkdownView } from '../../components/MarkdownView'
 import { SlideAutoFit } from './SlideAutoFit'
-import { movingGuides, snapGeometry } from './geometryTools'
+import { movingGuides, snapGeometry, resizeGeometry, RESIZE_HANDLES } from './geometryTools'
+import type { ResizeHandle } from './geometryTools'
 import { normalizeRect, slideCollisions } from './layoutModel'
 import type { BlockRect, EditorLayout, EditorSlide, SlideBlock } from './layoutModel'
 
@@ -23,12 +24,13 @@ type Props={
 }
 type Drag={
   id:string
-  mode:'move'|'resize'
+  mode:'move'|ResizeHandle
   pointer:number
   x:number;y:number
   width:number;height:number
   initial:BlockRect
   changed:boolean
+  proportional:boolean
 }
 const labelFor=(block:SlideBlock)=>({
   heading:'Título',paragraph:'Parágrafo',list:'Lista',image:'Imagem',
@@ -45,7 +47,8 @@ export function SlideBlockCanvas({
   const [overlaps,setOverlaps]=useState(0)
   const hasOverrides=slide.blocks.some(block=>layout.overrides[block.id])
   const separate=arranging||hasOverrides
-  const selectedRect=selection?.id?layout.overrides[selection.id]??selection.rect:null
+  const selectedBlock=slide.blocks.find(block=>block.id===selection?.id)
+  const selectedRect=selectedBlock&&selection?layout.overrides[selection.id]??selection.rect:null
   const guides=selectedRect?movingGuides(selectedRect):null
   const count=Math.max(slideCollisions(slide,layout),overlaps)
 
@@ -82,7 +85,7 @@ export function SlideBlockCanvas({
     }
   },[slide,layout,separate,onOverflow])
 
-  function initial(block:SlideBlock,node:HTMLElement):BlockRect{
+  function initial(node:HTMLElement):BlockRect{
     const stage=area.current?.getBoundingClientRect()
     const item=node.getBoundingClientRect()
     const width=Math.max(stage?.width||1,1),height=Math.max(stage?.height||1,1)
@@ -97,22 +100,23 @@ export function SlideBlockCanvas({
   }
 
   function select(block:SlideBlock,node:HTMLElement){
-    const rect=layout.overrides[block.id]??initial(block,node)
+    const rect=layout.overrides[block.id]??initial(node)
     onSelect?.({id:block.id,rect})
     return rect
   }
 
-  function pointerDown(event:ReactPointerEvent<HTMLElement>,block:SlideBlock,mode:'move'|'resize'){
+  function pointerDown(event:ReactPointerEvent<HTMLElement>,block:SlideBlock,mode:'move'|ResizeHandle){
     if(!editable||!arranging||event.button!==0)return
     if(mode==='move' && (event.target as HTMLElement).closest('button,a,input,textarea,select'))return
     event.preventDefault()
     event.stopPropagation()
-    const node=event.currentTarget.closest<HTMLElement>('[data-slide-block]')
+    const node=Array.from(area.current?.querySelectorAll<HTMLElement>('[data-slide-block]')??[])
+      .find(item=>item.dataset.slideBlock===block.id)
     const stage=area.current?.getBoundingClientRect()
     if(!node||!stage)return
     const rect=select(block,node)
     dragging.current={id:block.id,mode,pointer:event.pointerId,x:event.clientX,y:event.clientY,
-      initial:rect,width:stage.width||1,height:stage.height||1,changed:false}
+      initial:rect,width:stage.width||1,height:stage.height||1,changed:false,proportional:block.kind==='image'}
     event.currentTarget.setPointerCapture(event.pointerId)
   }
 
@@ -126,11 +130,10 @@ export function SlideBlockCanvas({
       onGestureStart?.()
     }
     const x=deltaX/active.width,y=deltaY/active.height
-    const proposed=active.mode==='move'
-      ?{...active.initial,x:active.initial.x+x,y:active.initial.y+y}
-      :{...active.initial,w:active.initial.w+x,h:active.initial.h+y}
-    const valid=normalizeRect(proposed)
-    if(valid)onGeometry?.(active.id,snapGeometry(valid,active.mode,snap&&!event.altKey))
+    const next=active.mode==='move'
+      ?snapGeometry({...active.initial,x:active.initial.x+x,y:active.initial.y+y},'move',snap&&!event.altKey)
+      :resizeGeometry(active.initial,active.mode,x,y,snap&&!event.altKey,active.proportional||event.shiftKey)
+    onGeometry?.(active.id,next)
   }
   function pointerUp(event:ReactPointerEvent<HTMLElement>){
     if(dragging.current?.pointer===event.pointerId){
@@ -138,30 +141,38 @@ export function SlideBlockCanvas({
       dragging.current=null
     }
   }
-  function keyDown(event:ReactKeyboardEvent<HTMLElement>,block:SlideBlock,mode:'move'|'resize'){
+  function keyDown(event:ReactKeyboardEvent<HTMLElement>,block:SlideBlock,mode:'move'|ResizeHandle){
     if(!arranging||!editable)return
     const steps:Record<string,[number,number]>={
       ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]
     }
+    if(event.key==='Escape'){event.preventDefault();onSelect?.(null);return}
+    if(mode==='move'&&(event.key==='Enter'||event.key===' ')){
+      event.preventDefault();onSelect?.({id:block.id,rect:layout.overrides[block.id]??initial(event.currentTarget)});return
+    }
     const direction=steps[event.key]
     if(!direction)return
     event.preventDefault();event.stopPropagation()
-    const node=event.currentTarget.closest<HTMLElement>('[data-slide-block]')
+    const node=Array.from(area.current?.querySelectorAll<HTMLElement>('[data-slide-block]')??[])
+      .find(item=>item.dataset.slideBlock===block.id)
     if(!node)return
-    const rect=layout.overrides[block.id]??initial(block,node)
+    const rect=layout.overrides[block.id]??initial(node)
     onSelect?.({id:block.id,rect})
     const step=event.shiftKey?.05:.01
     const x=direction[0]*step,y=direction[1]*step
-    const next=mode==='move'?{...rect,x:rect.x+x,y:rect.y+y}:{...rect,w:rect.w+x,h:rect.h+y}
-    const normalized=normalizeRect(next)
-    if(normalized){
+    const next=mode==='move'?normalizeRect({...rect,x:rect.x+x,y:rect.y+y})
+      :resizeGeometry(rect,mode,x,y,false,block.kind==='image')
+    if(next){
       onGestureStart?.()
-      onGeometry?.(block.id,snapGeometry(normalized,mode,snap&&!event.altKey))
+      onGeometry?.(block.id,next)
     }
   }
 
   return <div className={'f7-canvas-wrap '+(arranging?'f7-editing':'')}>
-    <div ref={area} className={'f4-content-area f7-canvas '+(arranging?'f4-arranging':'')}>
+    <div ref={area} className={'f4-content-area f7-canvas '+(arranging?'f4-arranging':'')}
+      onPointerDown={event=>{
+        if(arranging&&event.target===event.currentTarget)onSelect?.(null)
+      }}>
       {!separate
         ?<SlideAutoFit markdown={slide.slide.markdown} layout={slide.slide.layout}/>
         :slide.blocks.map(block=>{
@@ -179,31 +190,22 @@ export function SlideBlockCanvas({
             aria-pressed={arranging?chosen:undefined}
             onClick={event=>{if(arranging&&editable)select(block,event.currentTarget)}}
             onPointerDown={event=>pointerDown(event,block,'move')}
-            onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp}
+            onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={()=>{dragging.current=null}}
             onKeyDown={event=>{if(event.target===event.currentTarget)keyDown(event,block,'move')}}>
             <MarkdownView markdown={block.markdown}/>
-            {arranging&&editable&&chosen&&<div className="f7-selection-tools">
-              <span className="f7-block-type">{labelFor(block)}</span>
-              <button type="button" title="Mover com setas" aria-label="Mover bloco selecionado"
-                onPointerDown={event=>pointerDown(event,block,'move')}
-                onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp}
-                onKeyDown={event=>keyDown(event,block,'move')}><GripVertical size={15}/></button>
-              {rect&&<button type="button" title="Voltar ao layout automático"
-                aria-label="Restaurar bloco automático"
-                onClick={event=>{event.stopPropagation();onReset?.(block.id);onSelect?.(null)}}>
-                <RotateCcw size={14}/>
-              </button>}
-              <button className="f7-resize-handle" type="button"
-                title="Arraste para mudar altura e largura"
-                aria-label="Redimensionar bloco selecionado"
-                onPointerDown={event=>pointerDown(event,block,'resize')}
-                onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={pointerUp}
-                onKeyDown={event=>keyDown(event,block,'resize')}>
-                <ArrowDownRight size={17}/>
-              </button>
-            </div>}
           </div>
         })}
+      {arranging&&editable&&selectedBlock&&selectedRect&&<div className="f8-selection-frame"
+        style={{left:selectedRect.x*100+'%',top:selectedRect.y*100+'%',
+          width:selectedRect.w*100+'%',height:selectedRect.h*100+'%'}}>
+        {RESIZE_HANDLES.map(handle=><button key={handle.id} type="button"
+          className={'f8-handle f8-handle-'+handle.id}
+          aria-label={handle.label} title={handle.label}
+          onPointerDown={event=>pointerDown(event,selectedBlock,handle.id)}
+          onPointerMove={pointerMove} onPointerUp={pointerUp}
+          onPointerCancel={()=>{dragging.current=null}}
+          onKeyDown={event=>keyDown(event,selectedBlock,handle.id)}/>)}
+      </div>}
       {arranging&&guides?.vertical&&<div className="f7-guide f7-guide-v" aria-hidden="true"/>}
       {arranging&&guides?.horizontal&&<div className="f7-guide f7-guide-h" aria-hidden="true"/>}
     </div>

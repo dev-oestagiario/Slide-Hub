@@ -69,7 +69,7 @@
   padding:5px 6px;min-height:28px;cursor:grab;touch-action:none}
 .f7-canvas.f4-arranging .f7-editor-block.f4-pinned{outline-offset:0}
 .f7-canvas.f4-arranging .f7-editor-block.f7-selected{outline:2px solid #0b8d79;
-  box-shadow:0 0 0 3px rgba(14,133,113,.18);z-index:10!important}
+  box-shadow:0 0 0 3px rgba(14,133,113,.18)}
 .f7-editor-block:focus-visible{outline:3px solid #0c886f!important;outline-offset:2px}
 .f7-selection-tools{position:absolute;top:0;right:0;z-index:20;
   display:flex;align-items:center;gap:3px;background:#fff;color:#15584c;
@@ -162,4 +162,29 @@
 }
 @media(prefers-reduced-motion:reduce){
   .f7-autofit-content{will-change:auto;transition:none!important}
+}
+
+/* F8 — independent selection overlay: resize handles never change block size. */
+.f7-canvas.f4-arranging .f7-editor-block.f7-selected{
+  outline:0;box-shadow:none;
+}
+.f8-selection-frame{position:absolute;border:2px solid #0b8d79;box-sizing:border-box;
+  z-index:110;pointer-events:none;border-radius:2px}
+.f8-handle{position:absolute;display:block;width:20px;height:20px;min-width:0;min-height:0;
+  padding:0;background:transparent;border:0;pointer-events:auto;touch-action:none;z-index:1}
+.f8-handle:after{content:'';position:absolute;left:50%;top:50%;
+  transform:translate(-50%,-50%);width:8px;height:8px;box-sizing:border-box;
+  background:#fff;border:2px solid #0b8d79;border-radius:2px;pointer-events:none}
+.f8-handle:hover:after,.f8-handle:focus-visible:after{background:#0b8d79;outline:2px solid #c1f3e6}
+.f8-handle-nw{top:-5px;left:-5px;cursor:nwse-resize}
+.f8-handle-n{top:-5px;left:50%;transform:translateX(-50%);cursor:ns-resize}
+.f8-handle-ne{top:-5px;right:-5px;cursor:nesw-resize}
+.f8-handle-e{right:-5px;top:50%;transform:translateY(-50%);cursor:ew-resize}
+.f8-handle-se{right:-5px;bottom:-5px;cursor:nwse-resize}
+.f8-handle-s{bottom:-5px;left:50%;transform:translateX(-50%);cursor:ns-resize}
+.f8-handle-sw{left:-5px;bottom:-5px;cursor:nesw-resize}
+.f8-handle-w{left:-5px;top:50%;transform:translateY(-50%);cursor:ew-resize}
+@media(pointer:coarse){
+  .f8-handle{width:24px;height:24px}
+  .f8-handle:after{width:10px;height:10px}
 }

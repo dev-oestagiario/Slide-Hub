@@ -63,6 +63,6 @@ export function SlideInspector({block,rect,onChange,onReset,onClear}:Props){
       </button>}
       <button type="button" onClick={onReset}><RotateCcw size={15}/> Layout automático</button>
     </div>
-    <p>Arraste no slide ou use as setas. Shift movimenta mais rápido; Alt desativa o encaixe.</p>
+    <p>Arraste o elemento ou suas oito alças. Imagens mantêm a proporção nos cantos; Shift mantém a proporção dos demais elementos durante o arraste. Alt desativa o encaixe. Use as setas para ajustes finos ou Esc para desmarcar.</p>
   </section>
 }
