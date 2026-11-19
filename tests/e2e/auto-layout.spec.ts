@@ -1,0 +1,284 @@
+import { expect, test } from '@playwright/test'
+
+test('imagem grande é contida e texto excedente gera páginas adicionais',async({page})=>{
+  await page.goto('/tests/e2e/auto-layout.html')
+  const slide=page.locator('.mini-slide')
+  await expect(slide).toHaveCSS('aspect-ratio','16 / 9')
+  await expect(page.getByText(/\d+ slides automáticos/)).toBeVisible()
+  const count=Number((await page.locator('main header strong').innerText()).split(' ')[0])
+  expect(count).toBeGreaterThan(1)
+  const image=page.locator('.f7-autofit img')
+  await expect(image).toBeVisible()
+  const metrics=await page.evaluate(()=>{
+    const stage=document.querySelector('.f7-autofit')!
+    const image=document.querySelector('.f7-autofit img')!
+    return {stage:stage.getBoundingClientRect().toJSON(),image:image.getBoundingClientRect().toJSON()}
+  })
+  expect(metrics.image.right).toBeLessThanOrEqual(metrics.stage.right+3)
+  expect(metrics.image.bottom).toBeLessThanOrEqual(metrics.stage.bottom+3)
+})
+
+test('editor de precisão seleciona, desloca e ajusta o bloco sem alterar Markdown',async({page})=>{
+  await page.goto('/tests/e2e/auto-layout.html')
+  const source=await page.getByRole('textbox',{name:'Texto da aula'}).inputValue()
+  await page.getByRole('button',{name:'Organizar visualmente'}).click()
+  const heading=page.getByRole('button',{name:'Selecionar e mover Título'}).first()
+  await heading.click()
+  await expect(page.getByRole('region',{name:'Propriedades do elemento selecionado'})).toBeVisible()
+  await page.getByRole('button',{name:'Centralizar horizontalmente'}).click()
+  const moved=page.locator('.f7-editor-block.f7-selected')
+  await expect(moved).toHaveAttribute('style',/left:/)
+  await page.getByRole('spinbutton',{name:'Largura'}).fill('65')
+  await expect(moved).toHaveAttribute('style',/width: 65%/)
+  expect(await page.getByRole('textbox',{name:'Texto da aula'}).inputValue()).toBe(source)
+})
+
+test('layout permanece dentro da largura do celular e comandos estão acessíveis',async({page})=>{
+  await page.goto('/tests/e2e/auto-layout.html')
+  const width=await page.evaluate(()=>({window:document.documentElement.clientWidth,
+    scroll:document.documentElement.scrollWidth}))
+  expect(width.scroll).toBeLessThanOrEqual(width.window+2)
+  await page.getByRole('button',{name:'Organizar visualmente'}).click()
+  const block=page.getByRole('button',{name:'Selecionar e mover Título'}).first()
+  await block.click()
+  await expect(page.getByRole('spinbutton',{name:'Posição X'})).toBeVisible()
+})
+
+
+test('caixa de seleção acompanha a largura do título e não a do slide',async({page})=>{
+  await page.goto('/tests/e2e/auto-layout.html')
+  await page.getByRole('textbox',{name:'Texto da aula'}).fill('# Curto\n\nTexto curto.')
+  await page.getByRole('button',{name:'Organizar visualmente'}).click()
+  const title=page.getByRole('button',{name:'Selecionar e mover Título'}).first()
+  await expect(title).toBeVisible()
+  const sizes=await page.evaluate(()=>{
+    const canvas=document.querySelector<HTMLElement>('.f7-canvas')!
+    const block=canvas.querySelector<HTMLElement>('.f7-editor-block')!
+    const heading=block.querySelector<HTMLElement>('h1')!
+    return {
+      canvas:canvas.getBoundingClientRect().width,
+      block:block.getBoundingClientRect().width,
+      text:heading.getBoundingClientRect().width
+    }
+  })
+  expect(sizes.block).toBeLessThan(sizes.canvas*.9)
+  expect(Math.abs(sizes.block-sizes.text)).toBeLessThan(32)
+  await title.click()
+  await expect(title).toHaveClass(/f7-selected/)
+  const pct=Number(await page.getByRole('spinbutton',{name:'Largura'}).inputValue())
+  expect(pct).toBeLessThan(90)
+})
+
+test('bloco já redimensionado mantém a largura personalizada ao selecioná-lo',async({page})=>{
+  await page.goto('/tests/e2e/auto-layout.html')
+  await page.getByRole('textbox',{name:'Texto da aula'}).fill('# Título pequeno\n\nAlguma explicação.')
+  await page.getByRole('button',{name:'Organizar visualmente'}).click()
+  const title=page.getByRole('button',{name:'Selecionar e mover Título'}).first()
+  await title.click()
+  await page.getByRole('spinbutton',{name:'Largura'}).fill('28')
+  await expect(title).toHaveAttribute('style',/width: 28%/)
+  await page.getByRole('button',{name:'Desmarcar elemento'}).click()
+  await title.click()
+  await expect(page.getByRole('spinbutton',{name:'Largura'})).toHaveValue('28')
+})
+
+
+test('F8: oito alças acompanham a seleção e não alteram o elemento até um ajuste',async({page})=>{
+  await page.goto('/tests/e2e/auto-layout.html')
+  await page.getByRole('textbox',{name:'Texto da aula'}).fill('# Curto\n\nTexto curto.')
+  await page.getByRole('button',{name:'Organizar visualmente'}).click()
+  const title=page.getByRole('button',{name:'Selecionar e mover Título'}).first()
+  await title.click()
+  const frame=page.locator('.f8-selection-frame')
+  await expect(frame.locator('.f8-handle')).toHaveCount(8)
+  const b=await title.boundingBox()
+  const f=await frame.boundingBox()
+  expect(b&&f).toBeTruthy()
+  expect(Math.abs(b!.width-f!.width)).toBeLessThan(5)
+  expect(Math.abs(b!.x-f!.x)).toBeLessThan(5)
+  await expect(title).not.toHaveClass(/f4-pinned/)
+  await page.getByRole('spinbutton',{name:'Posição X'}).fill('20')
+  await page.getByRole('spinbutton',{name:'Posição Y'}).fill('20')
+  await page.getByRole('spinbutton',{name:'Largura'}).fill('40')
+  await page.getByRole('spinbutton',{name:'Altura'}).fill('30')
+  const west=page.getByRole('button',{name:'Redimensionar borda esquerda'})
+  await west.focus()
+  await page.keyboard.press('ArrowLeft')
+  await expect(page.getByRole('spinbutton',{name:'Posição X'})).toHaveValue('19')
+  await expect(page.getByRole('spinbutton',{name:'Largura'})).toHaveValue('41')
+  await page.keyboard.press('Escape')
+  await expect(frame).toHaveCount(0)
+  await expect(title).toHaveAttribute('style',/width: 41/)
+})
+
+test('F8: arrastar a alça direita altera somente largura sem deslocar o bloco',async({page})=>{
+  await page.goto('/tests/e2e/auto-layout.html')
+  await page.getByRole('textbox',{name:'Texto da aula'}).fill('# Curto\n\nTexto curto.')
+  await page.getByRole('button',{name:'Organizar visualmente'}).click()
+  await page.getByRole('button',{name:'Selecionar e mover Título'}).first().click()
+  for(const [name,value] of [['Posição X','20'],['Posição Y','20'],['Largura','40'],['Altura','30']]){
+    await page.getByRole('spinbutton',{name,exact:true}).fill(value)
+  }
+  const handle=page.getByRole('button',{name:'Redimensionar borda direita'})
+  await handle.scrollIntoViewIfNeeded()
+  await expect(handle).toBeInViewport()
+  const box=await handle.boundingBox()
+  const canvas=await page.locator('.f7-canvas').boundingBox()
+  expect(box&&canvas).toBeTruthy()
+  const x=box!.x+box!.width/2,y=box!.y+box!.height/2
+  await page.mouse.move(x,y)
+  await page.mouse.down()
+  await page.mouse.move(x+canvas!.width*.10,y,{steps:5})
+  await page.mouse.up()
+  await expect(page.getByRole('spinbutton',{name:'Posição X'})).toHaveValue('20')
+  await expect(page.getByRole('spinbutton',{name:'Altura'})).toHaveValue('30')
+  await expect(page.getByRole('spinbutton',{name:'Largura'})).toHaveValue('50')
+})
+
+
+test('F9: seleção múltipla, grupo, bloqueio e alinhamento preservam texto',async({page})=>{
+  await page.goto('/tests/e2e/auto-layout.html')
+  const text='# Curto\n\nPrimeiro parágrafo.\n\nSegundo parágrafo.'
+  await page.getByRole('textbox',{name:'Texto da aula'}).fill(text)
+  await page.getByRole('button',{name:'Organizar visualmente'}).click()
+  await page.getByRole('button',{name:'Seleção múltipla'}).click()
+  const title=page.getByRole('button',{name:'Selecionar e mover Título'}).first()
+  const para=page.getByRole('button',{name:'Selecionar e mover Parágrafo'}).first()
+  await title.focus()
+  await page.keyboard.press('Enter')
+  await para.focus()
+  await page.keyboard.press('Enter')
+  await expect(page.locator('.f9-group-frame')).toBeVisible()
+  await expect(page.locator('.f7-editor-block.f7-selected')).toHaveCount(2)
+  await page.getByRole('button',{name:'Agrupar',exact:true}).click()
+  await expect(title).toHaveClass(/f4-pinned/)
+  await expect(para).toHaveClass(/f4-pinned/)
+  await page.getByRole('button',{name:'Alinhar à esquerda (seleção)',exact:true}).click()
+  const left=await title.evaluate(el=>(el as HTMLElement).style.left)
+  await expect.poll(()=>para.evaluate(el=>(el as HTMLElement).style.left)).toBe(left)
+  await page.getByRole('button',{name:'Bloquear',exact:true}).click()
+  await expect(title).toHaveClass(/f9-locked/)
+  await expect(page.getByRole('button',{name:'Agrupar',exact:true})).toBeDisabled()
+  await page.getByRole('button',{name:'Desbloquear',exact:true}).click()
+  await expect(title).not.toHaveClass(/f9-locked/)
+  await page.getByRole('button',{name:'Seleção múltipla'}).click()
+  // Keyboard movement is an atomic group operation; its children retain spacing.
+  const xBefore=await title.evaluate(el=>parseFloat((el as HTMLElement).style.left))
+  await title.focus()
+  await page.keyboard.press('ArrowRight')
+  await expect.poll(()=>title.evaluate(el=>parseFloat((el as HTMLElement).style.left))).toBeGreaterThan(xBefore)
+  await expect.poll(()=>para.evaluate(el=>(el as HTMLElement).style.left)).toBe(await title.evaluate(el=>(el as HTMLElement).style.left))
+  await page.getByRole('button',{name:'Desagrupar',exact:true}).click()
+  await title.focus()
+  await page.keyboard.press('Escape')
+  await title.focus()
+  await page.keyboard.press('Enter')
+  await expect(page.locator('.f7-editor-block.f7-selected')).toHaveCount(1)
+  await page.getByRole('button',{name:'Girar à direita'}).click()
+  await expect(title).toHaveAttribute('style',/rotate\(15deg\)/)
+  await page.getByRole('button',{name:'Girar à esquerda'}).click()
+  await expect(title).not.toHaveAttribute('style',/rotate\(/)
+  expect(await page.getByRole('textbox',{name:'Texto da aula'}).inputValue()).toBe(text)
+})
+
+
+test('F10: camada sobreposta pode ser selecionada e elevada pelo painel',async({page})=>{
+  await page.goto('/tests/e2e/auto-layout.html')
+  await page.getByRole('textbox',{name:'Texto da aula'}).fill('# Título\n\nTexto curto.')
+  await page.getByRole('button',{name:'Organizar visualmente'}).click()
+  const panel=page.getByRole('complementary',{name:'Camadas do slide'})
+  const title=page.getByRole('button',{name:'Selecionar e mover Título'}).first()
+  const para=page.getByRole('button',{name:'Selecionar e mover Parágrafo'}).first()
+  await panel.getByRole('button',{name:'Selecionar camada: Título',exact:true}).click()
+  await expect(title).toHaveClass(/f7-selected/)
+  for(const [name,value] of [['Posição X','20'],['Posição Y','20'],['Largura','40'],['Altura','25']]){
+    await page.getByRole('spinbutton',{name,exact:true}).fill(value)
+  }
+  await panel.getByRole('button',{name:'Selecionar camada: Texto curto.',exact:true}).click()
+  for(const [name,value] of [['Posição X','20'],['Posição Y','20'],['Largura','40'],['Altura','25']]){
+    await page.getByRole('spinbutton',{name,exact:true}).fill(value)
+  }
+  await expect(para).toHaveClass(/f7-selected/)
+  await panel.getByRole('button',{name:'Selecionar camada: Título',exact:true}).click()
+  await expect(title).toHaveClass(/f7-selected/)
+  await panel.getByRole('button',{name:'Subir camada'}).click()
+  await expect.poll(()=>title.evaluate(el=>Number((el as HTMLElement).style.zIndex))).toBeGreaterThan(await para.evaluate(el=>Number((el as HTMLElement).style.zIndex)))
+})
+
+test('F10: alças coletivas escalam elementos e preservam distâncias proporcionais',async({page})=>{
+  await page.goto('/tests/e2e/auto-layout.html')
+  await page.getByRole('textbox',{name:'Texto da aula'}).fill('# Título\n\nTexto curto.')
+  await page.getByRole('button',{name:'Organizar visualmente'}).click()
+  const panel=page.getByRole('complementary',{name:'Camadas do slide'})
+  for(const [block,coords] of [['Título',['10','10','20','15']],['Texto curto.',['40','35','20','15']]] as const){
+    await panel.getByRole('button',{name:'Selecionar camada: '+block,exact:true}).click()
+    for(const [name,index] of [['Posição X',0],['Posição Y',1],['Largura',2],['Altura',3]] as const){
+      await page.getByRole('spinbutton',{name,exact:true}).fill(coords[index])
+    }
+  }
+  await page.getByRole('button',{name:'Seleção múltipla'}).click()
+  await panel.getByRole('button',{name:'Selecionar camada: Título',exact:true}).click()
+  await expect(page.locator('.f9-group-frame .f8-handle')).toHaveCount(4)
+  const handle=page.getByRole('button',{name:'Grupo: Redimensionar canto inferior direito'})
+  await handle.focus()
+  await page.keyboard.press('ArrowRight')
+  const sizes=await page.locator('.f7-editor-block.f7-selected').evaluateAll(nodes=>nodes.map(n=>parseFloat((n as HTMLElement).style.width)))
+  expect(sizes.every(value=>value>20)).toBe(true)
+  expect(Math.abs(sizes[0]-sizes[1])).toBeLessThan(.1)
+})
+
+test('F10: controle de rotação oferece ajuste livre por teclado',async({page})=>{
+  await page.goto('/tests/e2e/auto-layout.html')
+  await page.getByRole('textbox',{name:'Texto da aula'}).fill('# Título\n\nTexto curto.')
+  await page.getByRole('button',{name:'Organizar visualmente'}).click()
+  await page.getByRole('button',{name:'Selecionar camada: Título',exact:true}).click()
+  const handle=page.getByRole('button',{name:'Girar livremente'})
+  await handle.focus()
+  for(let i=0;i<7;i++)await page.keyboard.press('ArrowRight')
+  const title=page.getByRole('button',{name:'Selecionar e mover Título'}).first()
+  await expect(title).toHaveAttribute('style',/rotate\(7deg\)/)
+})
+
+
+test('F11: edição de título no slide sincroniza o Markdown e mantém o ID',async({page})=>{
+  await page.goto('/tests/e2e/auto-layout.html')
+  await page.getByRole('textbox',{name:'Texto da aula'}).fill('# Título\n\nTexto curto.')
+  await page.getByRole('button',{name:'Organizar visualmente'}).click()
+  await page.getByRole('button',{name:'Selecionar camada: Título',exact:true}).click()
+  const title=page.getByRole('button',{name:'Selecionar e mover Título'}).first()
+  const id=await title.getAttribute('data-slide-block')
+  await page.getByRole('button',{name:'Editar texto',exact:true}).click()
+  await page.getByRole('textbox',{name:'Texto do elemento'}).fill('Novo título')
+  await page.getByRole('button',{name:'Aplicar texto'}).click()
+  await expect(page.getByRole('textbox',{name:'Texto da aula'})).toHaveValue('# Novo título\n\nTexto curto.')
+  await expect(title).toHaveAttribute('data-slide-block',id!)
+  await expect(title.getByRole('heading')).toHaveText('Novo título')
+})
+test('F11: estilo individual e duplicação conservam a origem em Markdown',async({page})=>{
+  await page.goto('/tests/e2e/auto-layout.html')
+  await page.getByRole('textbox',{name:'Texto da aula'}).fill('# Título\n\nTexto curto.')
+  await page.getByRole('button',{name:'Organizar visualmente'}).click()
+  await page.getByRole('button',{name:'Selecionar camada: Texto curto.',exact:true}).click()
+  const original=page.getByRole('button',{name:'Selecionar e mover Parágrafo'}).first()
+  await page.getByLabel('Fonte do elemento').selectOption('serif')
+  await page.getByLabel('Cor do texto',{exact:true}).fill('#123456')
+  await page.getByLabel('Tamanho da fonte').fill('125')
+  await expect(original).toHaveClass(/f11-ink/)
+  await expect(original.locator('p')).toHaveCSS('color','rgb(18, 52, 86)')
+  await page.getByRole('button',{name:'Duplicar elemento',exact:true}).click()
+  await expect(page.getByRole('textbox',{name:'Texto da aula'})).toHaveValue('# Título\n\nTexto curto.\n\nTexto curto.')
+  const paragraphs=page.getByRole('button',{name:'Selecionar e mover Parágrafo'})
+  await expect(paragraphs).toHaveCount(2)
+  await expect(paragraphs.nth(1)).toHaveClass(/f11-ink/)
+  expect(await paragraphs.nth(1).getAttribute('data-slide-block')).not.toBe(await original.getAttribute('data-slide-block'))
+})
+test('F11: recorte de imagem é visual e não altera seu endereço',async({page})=>{
+  await page.goto('/tests/e2e/auto-layout.html')
+  const source='![Figura](./giant-image.svg)'
+  await page.getByRole('textbox',{name:'Texto da aula'}).fill(source)
+  await page.getByRole('button',{name:'Organizar visualmente'}).click()
+  await page.getByRole('button',{name:'Selecionar camada: Figura',exact:true}).click()
+  await page.getByLabel('Ajuste da imagem').selectOption('cover')
+  await expect(page.locator('.f11-image img')).toHaveCSS('object-fit','cover')
+  await expect(page.getByRole('textbox',{name:'Texto da aula'})).toHaveValue(source)
+})

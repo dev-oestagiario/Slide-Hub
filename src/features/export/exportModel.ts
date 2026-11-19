@@ -2,7 +2,7 @@ import type { Slide, SlideLayout } from '../../lib/slideParser.ts'
 import { normalizeSlideTheme, themeForSlide } from '../../lib/slideThemes.ts'
 import type { SlideTheme } from '../../lib/slideThemes.ts'
 import type { EditorLayout, BlockKind, BlockRect } from '../editor/layoutModel.ts'
-import { editorSlides } from '../editor/layoutModel.ts'
+import { editorSlides, extractSlideBlocks } from '../editor/layoutModel.ts'
 import type { PresentationTemplateConfig } from '../templates/model.ts'
 import { inferSlideKind, visualThemeForSlide } from '../templates/model.ts'
 
@@ -50,7 +50,11 @@ export function buildExportPlan(args:{
     const theme=visualThemeForSlide(
       template??null,themeForSlide(normalizeSlideTheme(args.theme),slide.theme),inferSlideKind(slide,index)
     )
-    const mapped=blocks[index]?.blocks.map(block=>({
+    const canonical=extractSlideBlocks([slide])
+    const stored=blocks[index]?.blocks??[]
+    // Never export stale cached text or an override attached to the wrong source block.
+    const consistent=stored.length===canonical.length&&stored.every((block,i)=>block.kind===canonical[i].kind&&block.markdown===canonical[i].markdown)
+    const mapped=(consistent?stored:[]).map(block=>({
       kind:block.kind,
       markdown:block.markdown,
       rect:editorLayout?.overrides[block.id]??null
@@ -62,7 +66,7 @@ export function buildExportPlan(args:{
   })
   const brand:ExportBrand={
     header:template?.branding.showHeader?template.branding.label:'',
-    ...(template?.branding.logoUrl?{logo:template.branding.logoUrl}:{}),
+    ...(template?.branding.showHeader&&template.branding.logoUrl?{logo:template.branding.logoUrl}:{}),
     align:template?.branding.logoAlignment==='right'?'right':'left',
     accentRule:Boolean(template?.branding.accentRule),
     footer:template?.footer.text??'',

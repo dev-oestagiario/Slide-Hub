@@ -7,4 +7,5 @@ import './styles/f2.css'
 import './styles/f3.css'
 import './styles/f4.css'
 import './styles/f5.css'
+import './styles/f7.css'
 createRoot(document.getElementById('root')!).render(<React.StrictMode><App/></React.StrictMode>)

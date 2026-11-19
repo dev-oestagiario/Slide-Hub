@@ -33,16 +33,23 @@ export default function App(){
   const [user,setUser]=useState<{id:string;email?:string}|null>(null),[booting,setBooting]=useState(true),[authEmail,setAuthEmail]=useState(''),[authPass,setAuthPass]=useState(''),[signup,setSignup]=useState(false)
   const [profile,setProfile]=useState<Profile|null>(null),[disciplines,setDisciplines]=useState<Discipline[]>([]),[modules,setModules]=useState<Module[]>([]),[lessons,setLessons]=useState<Lesson[]>([]),[templates,setTemplates]=useState<SlideTemplate[]>([])
   const [disciplineId,setDisciplineId]=useState<string|null>(null),[moduleId,setModuleId]=useState<string|null>(null),[lessonId,setLessonId]=useState<string|null>(null)
+  const [loadedUser,setLoadedUser]=useState<string|null>(null)
   const [presentationTemplates,setPresentationTemplates]=useState<PresentationTemplateRecord[]>([])
   const [templateLibraryOpen,setTemplateLibraryOpen]=useState(false)
   const [mode,setMode]=useState<'edit'|'article'>('edit'),[presenting,setPresenting]=useState(false)
   const [exporting,setExporting]=useState(false)
   const [create,setCreate]=useState<'discipline'|'module'|'lesson'|null>(null),[newTitle,setNewTitle]=useState(''),[newDesc,setNewDesc]=useState(''),[busy,setBusy]=useState(false),[message,setMessage]=useState('')
   const [themeConfig,setThemeConfig]=useState<SlideTheme>(DEFAULT_SLIDE_THEME),[themeStudioOpen,setThemeStudioOpen]=useState(false),[autoBreak,setAutoBreak]=useState(true),[notes,setNotes]=useState<Note[]>([]),[noteIndex,setNoteIndex]=useState(0),[noteText,setNoteText]=useState(''),[showSidebar,setShowSidebar]=useState(false)
+  const [notesLoadedFor,setNotesLoadedFor]=useState<string|null>(null)
+  const activeLesson=useRef<string|null>(null)
+  const activeUser=useRef<string|null>(null)
+  activeLesson.current=lessonId
+  activeUser.current=user?.id??null
   const [previewPage,setPreviewPage] = useState(0)
   const [dictating,setDictating] = useState(false)
   const recognition=useRef<{stop:()=>void}|null>(null)
-  const selectedDiscipline=disciplines.find(d=>d.id===disciplineId),selectedModule=modules.find(m=>m.id===moduleId),lesson=lessons.find(l=>l.id===lessonId)
+  const accountReady=Boolean(user&&loadedUser===user.id)
+  const selectedDiscipline=accountReady?disciplines.find(d=>d.id===disciplineId):undefined,selectedModule=accountReady?modules.find(m=>m.id===moduleId):undefined,lesson=accountReady?lessons.find(l=>l.id===lessonId):undefined
   const course=disciplines.find(d=>d.id===modules.find(m=>m.id===lesson?.module_id)?.discipline_id)??selectedDiscipline
   const canWrite=profile?.role==='teacher'||profile?.role==='admin',canEdit=Boolean(canWrite && course?.owner_id===user?.id)
   const editor=useLessonEditor({
@@ -62,40 +69,49 @@ export default function App(){
   useEffect(()=>{if(!supabase){setBooting(false);return}supabase.auth.getUser().then(({data})=>{setUser(data.user);setBooting(false)}).catch(()=>setBooting(false));const {data:{subscription}}=supabase.auth.onAuthStateChange((_event,session)=>setUser(session?.user??null));return ()=>subscription.unsubscribe()},[])
   async function refresh(){
     if(!supabase||!user)return
-    const [p,d,m,l,t,pt]=await Promise.all([supabase.from('profiles').select('*').eq('id',user.id).maybeSingle(),supabase.from('disciplines').select('*').order('created_at',{ascending:false}),supabase.from('modules').select('*').order('position'),supabase.from('lessons').select('*').order('position'),supabase.from('slide_templates').select('*'),supabase.from('presentation_templates').select('*').eq('owner_id',user.id).order('updated_at',{ascending:false})])
+    const requestedUser=user.id
+    const [p,d,m,l,t,pt]=await Promise.all([supabase.from('profiles').select('*').eq('id',user.id).maybeSingle(),supabase.from('disciplines').select('*').order('created_at',{ascending:false}),supabase.from('modules').select('*').order('position'),supabase.rpc('list_accessible_lessons'),supabase.from('slide_templates').select('*'),supabase.from('presentation_templates').select('*').eq('owner_id',user.id).order('updated_at',{ascending:false})])
+    if(activeUser.current!==requestedUser)return
     const error=[p.error,d.error,m.error,l.error,t.error].filter(Boolean).map(x=>x?.message).join(' / ')
-    if(error)setMessage(error)
+    if(error)setMessage(l.error?'Não foi possível carregar as aulas pela API protegida. '+l.error.message:error)
+    // Never fall back to raw lesson rows: the secure projection is required.
     if(pt.error)setMessage('Biblioteca de templates indisponível. Aplique a migração F2 no Supabase: '+pt.error.message)
     setProfile(p.data as Profile|null);setDisciplines((d.data||[]) as Discipline[]);setModules((m.data||[]) as Module[]);setLessons((l.data||[]) as Lesson[]);setTemplates((t.data||[]) as SlideTemplate[])
     setPresentationTemplates((pt.data||[]) as PresentationTemplateRecord[])
+    setLoadedUser(requestedUser)
   }
-  useEffect(()=>{if(!user){setProfile(null);setDisciplines([]);setModules([]);setLessons([]);setPresentationTemplates([]);setTemplateLibraryOpen(false);return}void refresh()},[user?.id])
-  useEffect(()=>{setMode('edit');setNoteIndex(0);setPreviewPage(0);setExporting(false)},[lesson?.id])
+  useEffect(()=>{
+    setLoadedUser(null);setProfile(null);setDisciplines([]);setModules([]);setLessons([]);setTemplates([]);setPresentationTemplates([])
+    setDisciplineId(null);setModuleId(null);setLessonId(null);setTemplateLibraryOpen(false);setThemeStudioOpen(false);setPresenting(false);setExporting(false);setNotes([]);setNoteText('')
+    if(user)void refresh()
+  },[user?.id])
+  useEffect(()=>{setMode('edit');setNoteIndex(0);setPreviewPage(0);setExporting(false);setPresenting(false);setNoteText('');recognition.current?.stop();recognition.current=null;setDictating(false)},[lesson?.id,user?.id])
   useEffect(()=>{const raw=lesson?.theme_config&&typeof lesson.theme_config==='object'&&Object.keys(lesson.theme_config).length?lesson.theme_config:template?.config;setThemeConfig(normalizeSlideTheme(raw))},[lesson?.id,lesson?.theme_config,template?.config])
-  useEffect(()=>{if(!lessonId||!canEdit||!supabase){setNotes([]);return}let active=true;supabase.from('speaker_notes').select('*').eq('lesson_id',lessonId).then(({data})=>{if(active)setNotes((data||[]) as Note[])});return ()=>{active=false}},[lessonId,canEdit])
+  useEffect(()=>{setNotes([]);setNotesLoadedFor(null);if(!lessonId||!canEdit||!supabase)return;let active=true;supabase.from('speaker_notes').select('*').eq('lesson_id',lessonId).then(({data,error})=>{if(active&&!error){setNotes((data||[]) as Note[]);setNotesLoadedFor(lessonId)}else if(active&&error)setMessage('Não foi possível carregar as notas. Tente novamente ao reabrir a aula.')});return ()=>{active=false}},[lessonId,canEdit,user?.id])
+  const currentNotes=useMemo(()=>canEdit&&notesLoadedFor===lessonId?notes.filter(note=>note.lesson_id===lessonId):[],[canEdit,notesLoadedFor,lessonId,notes])
   const noteSlideKey=slideModels[noteIndex]?.key
   const legacyKeyForNote=(note:Note)=>editor.originalSlideKeys[note.slide_index]
-  const presenterNotes=notes.map(note=>note.slide_key?note:{...note,slide_key:legacyKeyForNote(note)||null})
+  const presenterNotes=currentNotes.map(note=>note.slide_key?note:{...note,slide_key:legacyKeyForNote(note)||null})
   useEffect(()=>{
-    const note=notes.find(n=>n.slide_key&&n.slide_key===noteSlideKey)
-      ??notes.find(n=>!n.slide_key&&legacyKeyForNote(n)===noteSlideKey)
+    const note=currentNotes.find(n=>n.slide_key&&n.slide_key===noteSlideKey)
+      ??currentNotes.find(n=>!n.slide_key&&legacyKeyForNote(n)===noteSlideKey)
     setNoteText(note?.notes||'')
-  },[notes,noteIndex,noteSlideKey,editor.originalSlideKeys])
+  },[currentNotes,noteIndex,noteSlideKey,editor.originalSlideKeys])
   const noteBackfill=useRef(new Set<string>())
   useEffect(()=>{noteBackfill.current.clear()},[lessonId])
   useEffect(()=>{
     if(!supabase||!lessonId||!canEdit||!editor.ready||dirty||saveStatus!=='saved')return
-    for(const note of notes){
+    for(const note of currentNotes){
       const stableKey=legacyKeyForNote(note)
       if(!note.id||note.slide_key||!stableKey||noteBackfill.current.has(note.id))continue
       noteBackfill.current.add(note.id)
       void supabase.from('speaker_notes').update({slide_key:stableKey})
-        .eq('id',note.id).is('slide_key',null).select('*').maybeSingle().then(({data,error})=>{
+        .eq('id',note.id).eq('lesson_id',lessonId).is('slide_key',null).select('*').maybeSingle().then(({data,error})=>{
           if(error)noteBackfill.current.delete(note.id!)
           if(data)setNotes(items=>items.map(item=>item.id===note.id?data as Note:item))
         })
     }
-  },[notes,editor.originalSlideKeys,lessonId,canEdit,editor.ready,dirty,saveStatus])
+  },[currentNotes,editor.originalSlideKeys,lessonId,canEdit,editor.ready,dirty,saveStatus])
   useEffect(()=>{
     if(!dirty)return
     const warn=(event:BeforeUnloadEvent)=>{event.preventDefault();event.returnValue=''}
@@ -139,21 +155,23 @@ export default function App(){
   }
   async function share(){if(!supabase||!selectedDiscipline||!canEdit)return;const {error}=await supabase.from('disciplines').update({is_public:!selectedDiscipline.is_public}).eq('id',selectedDiscipline.id);if(error)setMessage(error.message);else await refresh()}
   async function saveNote(){
-    if(!supabase||!lesson||!canEdit||!noteSlideKey)return
-    const previous=notes.find(note=>note.slide_key===noteSlideKey)
-      ??notes.find(note=>!note.slide_key&&legacyKeyForNote(note)===noteSlideKey)
+    if(!supabase||!lesson||!canEdit||!editor.ready||notesLoadedFor!==lesson.id||!noteSlideKey)return
+    const targetLesson=lesson.id
+    const previous=currentNotes.find(note=>note.slide_key===noteSlideKey)
+      ??currentNotes.find(note=>!note.slide_key&&legacyKeyForNote(note)===noteSlideKey)
     // Keep the old unique (lesson_id, slide_index) for running clients.
     // Existing keyed notes retain their historical index; new notes use a free
     // numeric slot if inserting a slide displaced an older note.
-    const taken=new Set(notes.map(note=>note.slide_index))
+    const taken=new Set(currentNotes.map(note=>note.slide_index))
     const storageIndex=previous?.slide_index
       ??(taken.has(noteIndex)?Math.max(-1,...taken)+1:noteIndex)
     const payload={lesson_id:lesson.id,slide_index:storageIndex,slide_key:noteSlideKey,notes:noteText}
     const query=previous?.id
-      ?supabase.from('speaker_notes').update(payload).eq('id',previous.id).select('*').maybeSingle()
+      ?supabase.from('speaker_notes').update(payload).eq('id',previous.id).eq('lesson_id',targetLesson).select('*').maybeSingle()
       :supabase.from('speaker_notes').insert(payload).select('*').maybeSingle()
     const {data,error}=await query
     if(error||!data){setMessage(error?.message||'Não foi possível salvar a nota.');return}
+    if(activeLesson.current!==targetLesson)return
     setNotes(items=>[...items.filter(item=>item.id!==previous?.id&&item.slide_key!==noteSlideKey),data as Note])
     setMessage('Nota salva e vinculada ao slide.')
   }
@@ -253,6 +271,7 @@ export default function App(){
     catch{recognition.current=null;setDictating(false);setMessage('Não foi possível iniciar o ditado.')}
   }
   function startPresentation(){
+    if(!editor.ready)return
     setPresenting(true)
     if(!document.fullscreenElement) void document.documentElement.requestFullscreen?.().catch(()=>undefined)
   }
@@ -260,7 +279,7 @@ export default function App(){
     setPresenting(false)
     if(document.fullscreenElement) void document.exitFullscreen().catch(()=>undefined)
   }
-  if(booting)return <div className="centered">Carregando SlideHub…</div>
+  if(booting||(supabase&&user&&!accountReady))return <div className="centered">Carregando SlideHub…</div>
   if(!supabase)return <div className="centered"><div className="auth-panel"><h1>Configuração necessária</h1><p>Preencha VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY no arquivo .env.</p></div></div>
   if(!user)return <div className="centered"><div className="auth-panel"><span className="brand-icon"><GraduationCap/></span><h1>SlideHub</h1><p>Da aula escrita à apresentação.</p><form onSubmit={e=>void handleAuth(e,signup)}><label>E-mail<input type="email" required value={authEmail} onChange={e=>setAuthEmail(e.target.value)} /></label><label>Senha<input type="password" minLength={6} required value={authPass} onChange={e=>setAuthPass(e.target.value)}/></label><button className="button primary" disabled={busy}>{signup?'Criar conta':'Entrar'}</button><button className="button subtle" type="button" onClick={()=>setSignup(v=>!v)}>{signup?'Já tenho conta':'Criar conta'}</button></form>{message&&<p role="status">{message}</p>}</div></div>
   function showCreate(kind:'discipline'|'module'|'lesson'){
@@ -301,7 +320,7 @@ export default function App(){
             canEdit={canEdit} busy={busy} dirty={dirty} autoBreak={autoBreak}
             saveStatus={saveStatus} editorReady={editor.ready} activeTemplate={activePresentation}
             editorLayout={editor.layout} editorSlides={slideModels}
-            onUpdateGeometry={editor.updateGeometry} onResetGeometry={editor.resetGeometry}
+            onMotionChange={editor.updateMotion} onSlideOperation={editor.slideOperation} onChangeBlockSource={editor.changeBlockSource} onUpdateGeometry={editor.updateGeometry} onUpdateGeometries={editor.updateGeometries} onResetGeometry={editor.resetGeometry}
             onGeometryStart={editor.checkpoint} onUndoGeometry={editor.undo}
             onRedoGeometry={editor.redo} canUndoGeometry={editor.canUndo} canRedoGeometry={editor.canRedo}
             isDictating={dictating} theme={colors} slides={slides} previewPage={previewPage}
@@ -312,7 +331,7 @@ export default function App(){
             onNoteIndexChange={index=>{setNoteIndex(index);setPreviewPage(index)}}
             onNoteTextChange={setNoteText}
             onSave={()=>void save()} onPublish={()=>void publish()} onPresent={startPresentation}
-            onExport={()=>setExporting(true)}
+            onExport={()=>{if(editor.ready)setExporting(true)}}
             onOpenThemeStudio={()=>setThemeStudioOpen(true)} onOpenTemplateLibrary={openTemplateLibrary} onSaveNote={()=>void saveNote()}
             onDictate={dictate} onImportTemplate={file=>void importTemplate(file)}
             onUploadContentImage={uploadBackground} onNotify={setMessage}
@@ -346,11 +365,11 @@ export default function App(){
         savedThemes={templates} onClose={()=>setThemeStudioOpen(false)}
         onApply={applyGlobalTheme} onSavePreset={saveThemePreset}
         onUploadImage={uploadBackground}/>}
-    {exporting && lesson && canEdit && <ExportStudio
+    {exporting && lesson && canEdit && editor.ready && <ExportStudio
       plan={buildExportPlan({title,slides,theme:colors,template:activePresentation,
         editorLayout:editor.layout})}
       onClose={()=>setExporting(false)}/>}
-    {presenting && lesson &&
+    {presenting && lesson && editor.ready &&
       <Presentation slides={slides} title={title} theme={colors} template={activePresentation}
         editorLayout={editor.layout} editorSlides={slideModels}
         notes={presenterNotes} canEdit={canEdit} onClose={closePresentation}/>}

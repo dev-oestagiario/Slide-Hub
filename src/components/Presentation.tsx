@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import { BookOpenText, ChevronLeft, ChevronRight, Keyboard, List, Maximize2, Minimize2, X } from 'lucide-react'
+import { BookOpenText, Play, Pause, RotateCcw, Timer, ChevronLeft, ChevronRight, Keyboard, List, Maximize2, Minimize2, X } from 'lucide-react'
 import { MarkdownView } from './MarkdownView'
 import {
   firstSlide, lastSlide, nextSlide, presentationKeyAction, previousSlide
@@ -12,6 +12,8 @@ import type { Slide } from '../lib/slideParser'
 import type { PresentationTemplateConfig } from '../features/templates/model'
 import { inferSlideKind, visualThemeForSlide } from '../features/templates/model'
 import { TemplateChrome } from '../features/templates/TemplateChrome'
+import { timeline,nextDelay,estimatedDuration,DEFAULT_TIMING } from '../features/editor/motionModel'
+import { usePlaybackTimer } from '../features/editor/usePlaybackTimer'
 import { SlideBlockCanvas } from '../features/editor/SlideBlockCanvas'
 import type { EditorSlide, EditorLayout } from '../features/editor/layoutModel'
 
@@ -40,6 +42,16 @@ export function Presentation({
   slides,title,theme,template,notes,editorLayout,editorSlides,canEdit,onClose
 }:PresentationProps) {
   const [index,setIndex]=useState(0)
+  const [reveal,setReveal]=useState({index:0,step:0})
+  const motionStep=reveal.index===index?reveal.step:0
+  const sequence=timeline(editorSlides?.[index]?.blocks??[],editorLayout?.motion)
+  const timing=editorLayout?.motion?.timings?.[editorSlides?.[index]?.key??'']??DEFAULT_TIMING
+  const [playing,setPlaying]=useState(false)
+  const [rehearsal,setRehearsal]=useState(false)
+  const [recorded,setRecorded]=useState<Record<number,number>>({})
+  const enteredAt=useRef(Date.now())
+  const [rehearsalStart,setRehearsalStart]=useState(0)
+  const transition=editorLayout?.motion?.transitions[editorSlides?.[index]?.key??'']
   const [showSolution,setShowSolution]=useState(false)
   const [speakerMode,setSpeakerMode]=useState(false)
   const [showOutline,setShowOutline]=useState(false)
@@ -50,6 +62,11 @@ export function Presentation({
   const onCloseRef=useRef(onClose)
   const dialog=useRef<HTMLDivElement>(null)
   useModalFocus(dialog)
+  const finished=index===slides.length-1&&motionStep>=sequence.length
+  usePlaybackTimer(playing&&!showHelp&&!showOutline&&!showSolution&&slides.length>0,nextDelay(sequence,motionStep,timing,Boolean(transition)),index+':'+motionStep,()=>{
+    if(finished){setPlaying(false);return}
+    advance('next',true)
+  })
   useEffect(()=>{onCloseRef.current=onClose},[onClose])
 
   useEffect(()=>{
@@ -76,22 +93,21 @@ export function Presentation({
       }
       if(event.ctrlKey||event.altKey||event.metaKey)return
       const target=event.target
-      if(target instanceof HTMLElement
-        && target.closest('input,textarea,select,[contenteditable="true"],button,a,summary'))return
+      if(target instanceof HTMLElement&&(target.closest('input,textarea,select,[contenteditable="true"]')||(event.key===' '&&target.closest('button,a,summary'))))return
       const action=presentationKeyAction(event.key)
       if(!action)return
       event.preventDefault()
-      if(action==='next'){setIndex(n=>nextSlide(n,slides.length));setShowSolution(false)}
-      if(action==='previous'){setIndex(n=>previousSlide(n));setShowSolution(false)}
-      if(action==='first'){setIndex(firstSlide());setShowSolution(false)}
-      if(action==='last'){setIndex(lastSlide(slides.length));setShowSolution(false)}
+      if(action==='next')advance('next')
+      if(action==='previous')advance('previous')
+      if(action==='first')jumpTo(firstSlide())
+      if(action==='last')jumpTo(lastSlide(slides.length))
       if(action==='help')setShowHelp(open=>!open)
       if(action==='outline')setShowOutline(open=>!open)
       if(action==='fullscreen')toggleFullscreen()
     }
     window.addEventListener('keydown',onKeyDown)
     return ()=>window.removeEventListener('keydown',onKeyDown)
-  },[showHelp,showOutline,slides.length])
+  },[showHelp,showOutline,slides.length,index,motionStep,sequence.length,rehearsal])
 
   const slide=slides[index]??slides[0]
   if(!slide)return null
@@ -103,12 +119,20 @@ export function Presentation({
   const currentNote=notes.find(note=>note.slide_key&&note.slide_key===currentEditorSlide?.key)
     ??notes.find(note=>!note.slide_key&&note.slide_index===index)
 
-  function advance(direction:'previous'|'next'){
-    setIndex(n=>direction==='next'?nextSlide(n,slides.length):previousSlide(n))
-    setShowSolution(false)
+  function recordSlide(){
+    if(rehearsal){const elapsed=Math.max(0,Date.now()-enteredAt.current);setRecorded(previous=>({...previous,[index]:(previous[index]??0)+elapsed}))}
+    enteredAt.current=Date.now()
+  }
+  function advance(direction:'previous'|'next',automatic=false){
+    if(!automatic)setPlaying(false)
+    if(direction==='next'&&motionStep<sequence.length){setReveal({index,step:motionStep+1});return}
+    if(direction==='previous'&&motionStep>0){setReveal({index,step:motionStep-1});return}
+    const target=direction==='next'?nextSlide(index,slides.length):previousSlide(index)
+    if(target!==index){recordSlide();setIndex(target);setReveal({index:target,step:0});setShowSolution(false)}
   }
   function jumpTo(destination:number){
-    setIndex(Math.min(lastSlide(slides.length),Math.max(0,destination)))
+    const target=Math.min(lastSlide(slides.length),Math.max(0,destination))
+    setPlaying(false);recordSlide();setIndex(target);setReveal({index:target,step:0})
     setShowSolution(false)
     setShowOutline(false)
     dialog.current?.focus()
@@ -127,6 +151,7 @@ export function Presentation({
     <header className="slide-header f5-presenter-header">
       <span title={title}>{title}</span>
       <div className="f5-presenter-header-actions">
+        {canEdit&&<button onClick={()=>{if(rehearsal){recordSlide();setRehearsal(false)}else{setPlaying(false);setRecorded({});enteredAt.current=Date.now();setRehearsalStart(Date.now());setRehearsal(true)}}} aria-pressed={rehearsal} aria-label={rehearsal?'Encerrar ensaio':'Iniciar ensaio'} title={rehearsal?'Encerrar ensaio':'Iniciar ensaio'}><Timer size={18}/></button>}
         {canEdit&&<button onClick={()=>setSpeakerMode(value=>!value)}
           aria-pressed={speakerMode} aria-label={speakerMode?'Ocultar notas privadas':'Mostrar notas do professor'}>
           <BookOpenText size={18}/><span className="f5-teacher-action-text">{speakerMode?'Ocultar notas':'Modo professor'}</span>
@@ -149,7 +174,7 @@ export function Presentation({
     </header>
     {showHelp&&<aside className="f5-keyboard-help" id="f5-keyboard-help" aria-label="Atalhos disponíveis">
       <strong>Atalhos da apresentação</strong>
-      <p><kbd>→</kbd> <kbd>↓</kbd> <kbd>Espaço</kbd> Próximo slide
+      <p><kbd>→</kbd> <kbd>↓</kbd> <kbd>Espaço</kbd> Próximo elemento ou slide
         <span><kbd>←</kbd> <kbd>↑</kbd> Slide anterior</span></p>
       <p><kbd>Home</kbd> Início <span><kbd>End</kbd> Último slide</span></p>
       <p><kbd>O</kbd> Lista de slides <span><kbd>F</kbd> Tela cheia</span>
@@ -164,19 +189,19 @@ export function Presentation({
       </button>)}
     </nav>}
     <div className={'slide-layout f5-presenter-layout '+(speakerMode?'teacher-view':'')}>
-      <section className={[
-        'slide-body','layout-'+slide.layout,
+      <section key={index} className={[
+        'slide-body','layout-'+slide.layout,transition?'f13-transition f13-transition-'+transition:'',
         template?'f3-presentation-body':'',
         template?'f3-density-'+template.density:'',
         template?.branding.showHeader?'f3-with-header':'',
         template?.footer.text||template?.footer.showPageNumber?'f3-with-footer':''
       ].filter(Boolean).join(' ')}
         aria-label={'Slide '+(index+1)+': '+slideLabel(slide,index)}
-        style={{'--slide-accent':colors.accent} as CSSProperties}>
+        style={{'--slide-accent':colors.accent,'--f14-transition-duration':timing.transitionDuration+'ms'} as CSSProperties}>
         {!template?.branding.showHeader&&<span className="eyebrow">SLIDEHUB / {String(index+1).padStart(2,'0')}</span>}
         <div className={'slide-text '+(manuallyArranged?'f4-manual-slide':'')}>
           {currentEditorSlide&&editorLayout
-            ?<SlideBlockCanvas slide={currentEditorSlide} layout={editorLayout}/>
+            ?<SlideBlockCanvas slide={currentEditorSlide} layout={editorLayout} motionStep={motionStep}/>
             :<MarkdownView markdown={slide.markdown}/>}
         </div>
         {canEdit&&slide.answer&&<div className="slide-answer">
@@ -195,11 +220,20 @@ export function Presentation({
         {followingSlide?<div className="speaker-next"><MarkdownView markdown={followingSlide.markdown}/></div>:<p>Fim da apresentação</p>}
       </aside>}
     </div>
+    {canEdit&&(rehearsal||Object.keys(recorded).length>0)&&<aside className="f14-rehearsal" aria-label="Tempos do ensaio">
+      <strong>{rehearsal?'Ensaio em andamento':'Resultado do ensaio'}</strong>
+      <span>{rehearsal?Math.max(0,Math.floor((Date.now()-rehearsalStart)/1000))+' s decorridos':Math.round(Object.values(recorded).reduce((a,b)=>a+b,0)/1000)+' s registrados'}</span>
+      <span>Slide atual: {Math.round(((recorded[index]??0)+(rehearsal?Date.now()-enteredAt.current:0))/1000)} s · previsto {Math.round(estimatedDuration(sequence,timing,Boolean(transition))/1000)} s</span>
+      {!rehearsal&&<details><summary>Tempos por slide</summary><ol>{Object.entries(recorded).sort(([a],[b])=>Number(a)-Number(b)).map(([i,ms])=><li key={i}>Slide {Number(i)+1}: {(ms/1000).toFixed(1)} s</li>)}</ol></details>}
+      {!rehearsal&&<button type="button" onClick={()=>setRecorded({})}>Limpar ensaio</button>}
+    </aside>}
     <footer className="slide-controls f5-presenter-controls">
       <div>
-        <button onClick={()=>advance('previous')} disabled={index===0} aria-label="Slide anterior"><ChevronLeft/></button>
-        <span role="status" aria-live="polite" aria-atomic="true">{index+1} de {slides.length}</span>
-        <button onClick={()=>advance('next')} disabled={index===slides.length-1} aria-label="Próximo slide"><ChevronRight/></button>
+        <button onClick={()=>setPlaying(v=>!v)} disabled={finished&&!playing} aria-label={playing?'Pausar reprodução automática':'Iniciar reprodução automática'} title={playing?'Pausar':'Reproduzir automaticamente'}>{playing?<Pause size={18}/>:<Play size={18}/>}</button>
+        <button onClick={()=>jumpTo(0)} aria-label="Reiniciar apresentação" title="Reiniciar"><RotateCcw size={17}/></button>
+        <button onClick={()=>advance('previous')} disabled={index===0&&motionStep===0} aria-label="Slide anterior"><ChevronLeft/></button>
+        <span role="status" aria-live="polite" aria-atomic="true">{index+1} de {slides.length}{sequence.length>0&&<small className="f13-steps"> · Etapa {motionStep}/{sequence.length}</small>}</span>
+        <button onClick={()=>advance('next')} disabled={index===slides.length-1&&motionStep>=sequence.length} aria-label="Próximo slide" title={motionStep<sequence.length?'Revelar próximo elemento':'Próximo slide'}><ChevronRight/></button>
       </div>
       <div className="slide-progress" role="progressbar" aria-label="Progresso da apresentação"
         aria-valuemin={0} aria-valuemax={slides.length} aria-valuenow={index+1}>

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
-import { BookOpenText, CheckCircle2, ChevronLeft, ChevronRight, Code2, Columns3, FileText, ImagePlus, List, LayoutTemplate, Mic, Pause, Palette, Play, Plus, Quote, Save, Table2, Upload, Move, Undo2, Redo2, Download } from 'lucide-react'
+import { BookOpenText, CheckCircle2, ChevronLeft, ChevronRight, Code2, Columns3, FileText, ImagePlus, List, LayoutTemplate, Mic, Pause, Palette, Play, Plus, Quote, Save, Table2, Upload, Move, Undo2, Redo2, Download, Magnet, ZoomIn, ZoomOut, Maximize2, Minimize2, Layers } from 'lucide-react'
 import { MarkdownView } from '../../components/MarkdownView'
 import { articleMarkdown } from '../../lib/slideParser'
 import type { Slide } from '../../lib/slideParser'
@@ -10,7 +10,19 @@ import type { Lesson } from '../courses/types'
 import type { PresentationTemplateConfig } from '../templates/model'
 import { inferSlideKind, visualThemeForSlide } from '../templates/model'
 import { TemplateChrome } from '../templates/TemplateChrome'
-import { SlideBlockCanvas } from '../editor/SlideBlockCanvas'
+import { SlideBlockCanvas, selectionRects } from '../editor/SlideBlockCanvas'
+import { MultiElementTools } from '../editor/MultiElementTools'
+import type { RectSet } from '../editor/multiGeometry'
+import type { CanvasSelection, LayerRequest } from '../editor/SlideBlockCanvas'
+import { LayerPanel } from '../editor/LayerPanel'
+import { useModalFocus } from '../../lib/useModalFocus'
+import { ElementFormatPanel } from '../editor/ElementFormatPanel'
+import { MotionPanel } from '../editor/MotionPanel'
+import { timeline } from '../editor/motionModel'
+import type { MotionLayout } from '../editor/motionModel'
+import { SlideLibrary } from '../editor/SlideLibrary'
+import type { SlideOperation } from '../editor/slideOperations'
+import { SlideInspector } from '../editor/SlideInspector'
 import type { BlockRect, EditorLayout, EditorSlide } from '../editor/layoutModel'
 import type { DraftStatus } from '../editor/useLessonEditor'
 
@@ -28,7 +40,11 @@ export type LessonWorkspaceProps = {
   editorReady: boolean
   editorLayout: EditorLayout
   editorSlides: EditorSlide[]
+  onMotionChange:(value:MotionLayout)=>void
+  onSlideOperation:(page:number,operation:SlideOperation)=>number|null
+  onChangeBlockSource:(id:string,value:string,mode:'edit'|'duplicate',rect?:BlockRect)=>boolean
   onUpdateGeometry: (id:string, rect:BlockRect)=>void
+  onUpdateGeometries: (rects:RectSet)=>void
   onResetGeometry: (id:string)=>void
   onGeometryStart: ()=>void
   onUndoGeometry: ()=>void
@@ -64,7 +80,7 @@ export type LessonWorkspaceProps = {
 
 export function LessonWorkspace({
   lesson, title, markdown, mode, canEdit, busy, dirty, saveStatus, autoBreak, editorReady,
-  editorLayout, editorSlides, onUpdateGeometry, onResetGeometry, onGeometryStart,
+  editorLayout, editorSlides, onMotionChange, onSlideOperation, onChangeBlockSource, onUpdateGeometry, onUpdateGeometries, onResetGeometry, onGeometryStart,
   onUndoGeometry, onRedoGeometry, canUndoGeometry, canRedoGeometry, isDictating,
   theme, activeTemplate, slides, previewPage, noteIndex, noteText,
   onTitleChange, onMarkdownChange, onModeChange, onAutoBreakChange, onPreviewPageChange,
@@ -76,11 +92,72 @@ export function LessonWorkspace({
   const templateRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [arranging,setArranging] = useState(false)
-  useEffect(()=>setArranging(false),[lesson.id])
+  const [selection,setSelection]=useState<CanvasSelection|null>(null)
+  const [editingBlockId,setEditingBlockId]=useState<string|null>(null)
+  const [multiSelect,setMultiSelect]=useState(false)
+  const [layerRequest,setLayerRequest]=useState<LayerRequest|null>(null)
+  const [layersOpen,setLayersOpen]=useState(false)
+  const [libraryOpen,setLibraryOpen]=useState(false)
+  const [motionPreview,setMotionPreview]=useState<number|undefined>()
+  const [previewNonce,setPreviewNonce]=useState(0)
+  useEffect(()=>setMotionPreview(undefined),[previewPage,lesson.id,arranging])
+  const [expanded,setExpanded]=useState(false)
+  const previewRef=useRef<HTMLElement>(null)
+  useModalFocus(previewRef,expanded)
+  useEffect(()=>{
+    if(!expanded)return
+    const previous=document.body.style.overflow
+    document.body.style.overflow='hidden'
+    const close=(e:KeyboardEvent)=>{if(e.key==='Escape'&&!e.defaultPrevented)setExpanded(false)}
+    window.addEventListener('keydown',close)
+    return ()=>{document.body.style.overflow=previous;window.removeEventListener('keydown',close)}
+  },[expanded])
+  const [snap,setSnap]=useState(true)
+  const [zoom,setZoom]=useState(100)
+  const [mobilePane,setMobilePane]=useState<'write'|'preview'>('write')
+  useEffect(()=>{setArranging(false);setSelection(null);setLayerRequest(null);setExpanded(false);setLayersOpen(false);setLibraryOpen(false);setMobilePane('write')},[lesson.id])
+  useEffect(()=>{if(mode!=='edit'||!canEdit)setExpanded(false)},[mode,canEdit])
+  useEffect(()=>{setSelection(null);setLayerRequest(null);setEditingBlockId(null)},[previewPage,lesson.id])
+  useEffect(()=>{if(!arranging)setEditingBlockId(null)},[arranging])
   const page = Math.min(previewPage, Math.max(0, slides.length - 1))
   const slide = slides[page]
   const slideModel = editorSlides[page]
+  const selectedRects=Object.fromEntries(Object.entries(selectionRects(selection,editorLayout)).filter(([id])=>slideModel?.blocks.some(b=>b.id===id)))
+  const selectedCount=Object.keys(selectedRects).length
+  const selectedBlock=selectedCount===1?slideModel?.blocks.find(block=>block.id===selection?.id):undefined
+  const selectedRect=selection&&(selectedBlock
+    ?editorLayout.overrides[selection.id]??selection.rect:null)
 
+  function operate(operation:SlideOperation){
+    const next=onSlideOperation(page,operation)
+    if(next!==null){
+      setSelection(null);setLayerRequest(null);setEditingBlockId(null)
+      onPreviewPageChange(next)
+    }
+  }
+  useEffect(()=>{
+    if(!canEdit||mode!=='edit'||motionPreview!==undefined)return
+    const handle=(event:KeyboardEvent)=>{
+      const target=event.target instanceof HTMLElement?event.target:null
+      if(!target||!target.closest('.f1-editor-workspace')||target.closest('.f11-inline-edit'))return
+      const typing=target.closest('input,textarea,select,[contenteditable="true"]')
+      if(!(event.ctrlKey||event.metaKey)||event.altKey)return
+      const key=event.key.toLowerCase()
+      if(typing&&target!==editorRef.current&&target.getAttribute('aria-label')!=='Título da aula')return
+      if(key==='z'||key==='y'){
+        event.preventDefault()
+        if(key==='y'||event.shiftKey){if(canRedoGeometry)onRedoGeometry()}
+        else if(canUndoGeometry)onUndoGeometry()
+      }else if(!typing&&arranging&&key==='d'&&!editingBlockId){
+        if(event.shiftKey){event.preventDefault();operate({type:'duplicate'})}
+        else if(selectedBlock&&selectedRect&&!selectedRect.locked&&['paragraph','image'].includes(selectedBlock.kind)){
+          event.preventDefault();onChangeBlockSource(selectedBlock.id,'','duplicate',selectedRect)
+        }
+      }
+    }
+    window.addEventListener('keydown',handle)
+    return ()=>window.removeEventListener('keydown',handle)
+  })
   function insert(snippet: string) {
     if (!canEdit) return
     const element = editorRef.current
@@ -122,15 +199,15 @@ export function LessonWorkspace({
         </p>
       </div>
       <div className="actions f1-editor-actions">
-        {canEdit && <button className="button subtle" onClick={onPublish}>{lesson.status === 'published' ? 'Despublicar' : 'Publicar'}</button>}
-        {canEdit && <button className="button secondary" onClick={onSave} disabled={!dirty || busy}>
+        {canEdit && <button className="button subtle" onClick={onPublish} disabled={!editorReady}>{lesson.status === 'published' ? 'Despublicar' : 'Publicar'}</button>}
+        {canEdit && <button className="button secondary" onClick={onSave} disabled={!editorReady || !dirty || busy}>
           <Save size={17}/> Salvar
         </button>}
-        {canEdit && <button className="button secondary" onClick={onExport}
+        {canEdit && <button className="button secondary" onClick={onExport} disabled={!editorReady}
           title="Exportar slides em HTML ou imprimir como PDF">
           <Download size={17}/> Exportar
         </button>}
-        <button className="button primary" onClick={onPresent} title="Apresentar usando o conteúdo atual">
+        <button className="button primary" onClick={onPresent} disabled={!editorReady} title="Apresentar usando o conteúdo atual">
           <Play size={17}/> Apresentar
         </button>
       </div>
@@ -160,7 +237,16 @@ export function LessonWorkspace({
       </div>
     </div>
 
-    {mode === 'edit' ? <div className="editor-grid f1-editor-grid">
+    {mode === 'edit' ? <>
+      <div className="f7-mobile-switch" role="group" aria-label="Painel de edição no celular">
+        <button type="button" aria-pressed={mobilePane==='write'}
+          className={mobilePane==='write'?'active':''}
+          onClick={()=>setMobilePane('write')}><FileText size={16}/> Escrever</button>
+        <button type="button" aria-pressed={mobilePane==='preview'}
+          className={mobilePane==='preview'?'active':''}
+          onClick={()=>setMobilePane('preview')}><Play size={16}/> Ver slides</button>
+      </div>
+      <div className={'editor-grid f1-editor-grid f7-editor-grid f7-mobile-'+mobilePane}>
       <section className="editor-card f1-writing-panel" aria-label="Conteúdo da aula">
         <header className="panel-title f1-panel-head">
           <div><span className="f1-panel-kicker">01 / CRIAR</span><h2>Seu conteúdo</h2></div>
@@ -197,7 +283,7 @@ export function LessonWorkspace({
         </footer>
       </section>
 
-      <section className="preview-card f1-preview-panel" aria-label="Prévia automática dos slides">
+      <section ref={previewRef} tabIndex={expanded?-1:undefined} className={"preview-card f1-preview-panel "+(expanded?"f10-expanded":"")} role={expanded?"dialog":undefined} aria-modal={expanded?true:undefined} aria-label={expanded?"Editor visual ampliado":"Prévia automática dos slides"}>
         <header className="panel-title f1-panel-head">
           <div><span className="f1-panel-kicker">02 / VISUALIZAR</span><h2>Prévia automática</h2></div>
           <div className="preview-pagination">
@@ -211,37 +297,97 @@ export function LessonWorkspace({
         {canEdit && <div className="f4-layout-toolbar" role="toolbar" aria-label="Ajustes de posição">
           <button type="button" className={'f4-arrange-toggle '+(arranging?'active':'')}
             aria-pressed={arranging} disabled={!editorReady}
-            onClick={()=>setArranging(value=>!value)}>
+            onClick={()=>{if(arranging){setExpanded(false);setLayersOpen(false)}setArranging(value=>!value);setSelection(null);setLayerRequest(null)}}>
             <Move size={16}/> {arranging?'Concluir ajustes':'Organizar visualmente'}
           </button>
-          {arranging&&<>
+          <button type="button" aria-expanded={libraryOpen} onClick={()=>setLibraryOpen(v=>!v)}><LayoutTemplate size={16}/> Slides e elementos</button>
+          <>
             <button type="button" disabled={!canUndoGeometry} onClick={onUndoGeometry}
-              title="Desfazer último ajuste" aria-label="Desfazer posição"><Undo2 size={16}/></button>
+              title="Desfazer alteração (Ctrl+Z)" aria-label="Desfazer alteração"><Undo2 size={16}/></button>
             <button type="button" disabled={!canRedoGeometry} onClick={onRedoGeometry}
-              title="Refazer último ajuste" aria-label="Refazer posição"><Redo2 size={16}/></button>
-          </>}
-          <span className="f4-arrange-hint">{arranging?'Arraste ou use as setas do teclado para mover':'Posicionamento opcional'}</span>
+              title="Refazer alteração (Ctrl+Y)" aria-label="Refazer alteração"><Redo2 size={16}/></button>
+          </>
+          {arranging&&<button type="button" className={'f7-snap-button '+(multiSelect?'active':'')} aria-pressed={multiSelect}
+            onClick={()=>setMultiSelect(value=>!value)}>Seleção múltipla</button>}
+          {arranging&&<button type="button" className={'f7-snap-button '+(snap?'active':'')}
+            aria-pressed={snap} onClick={()=>setSnap(value=>!value)} title="Encaixar na grade">
+            <Magnet size={15}/> Grade {snap?'ativada':'livre'}
+          </button>}
+          {arranging&&<button type="button" aria-pressed={layersOpen} onClick={()=>setLayersOpen(v=>!v)}><Layers size={16}/> Camadas</button>}
+          {arranging&&<button type="button" aria-pressed={expanded} onClick={()=>setExpanded(v=>!v)}>
+            {expanded?<Minimize2 size={16}/>:<Maximize2 size={16}/>} {expanded?'Fechar modo ampliado':'Ampliar editor'}
+          </button>}
+          <div className="f7-zoom-control" role="group" aria-label="Zoom da prévia">
+            <button type="button" aria-label="Diminuir zoom" disabled={zoom===75}
+              onClick={()=>setZoom(value=>Math.max(75,value-25))}><ZoomOut size={15}/></button>
+            <span>{zoom}%</span>
+            <button type="button" aria-label="Aumentar zoom" disabled={zoom===150}
+              onClick={()=>setZoom(value=>Math.min(150,value+25))}><ZoomIn size={15}/></button>
+          </div>
+          <span className="f4-arrange-hint">{arranging
+            ?'Selecione elementos e arraste, redimensione ou ajuste abaixo'
+            :'Organização automática ativa • ajustes visuais opcionais'}</span>
         </div>}
-        <div className="f1-preview-stage">
-          <div className={[
+        <div className={'f10-stage-body '+(layersOpen&&arranging?'f10-with-layers ':'')+(libraryOpen?'f12-with-library':'')}>
+        {libraryOpen&&<SlideLibrary slides={slides} models={editorSlides} layout={editorLayout} theme={theme} template={activeTemplate} page={page} canEdit={canEdit&&editorReady} onPick={onPreviewPageChange} onOperation={operate}/>}
+        <div className="f1-preview-stage f7-preview-stage">
+          <div className="f7-preview-scroller">
+          <div key={previewNonce} className={[
+            motionPreview!==undefined&&slideModel&&editorLayout.motion?.transitions[slideModel.key]?'f13-transition f13-transition-'+editorLayout.motion.transitions[slideModel.key]:'',
             'mini-slide','f3-lesson-preview','f3-layout-'+slide.layout,
             activeTemplate?'f3-density-'+activeTemplate.density:'',
             activeTemplate?.branding.showHeader?'f3-with-header':'',
             activeTemplate?.footer.text||activeTemplate?.footer.showPageNumber?'f3-with-footer':''
-          ].join(' ')} style={slideBackgroundStyle(themeForSlide(
+          ].join(' ')} style={{...slideBackgroundStyle(themeForSlide(
             visualThemeForSlide(activeTemplate,theme,inferSlideKind(slide,page)),slide.theme
-          ))}>
+          )),width:zoom+'%','--f14-transition-duration':(editorLayout.motion?.timings?.[slideModel?.key??'']?.transitionDuration??360)+'ms'} as React.CSSProperties}>
             <div className="f3-preview-content f4-preview-shell">
               {slideModel && <SlideBlockCanvas
                 slide={slideModel} layout={editorLayout} editable={canEdit}
-                arranging={arranging}
+                arranging={arranging&&motionPreview===undefined} motionStep={motionPreview} snap={snap} multiSelect={multiSelect}
+                onBatchGeometry={onUpdateGeometries}
+                selection={selection} onSelect={setSelection} layerRequest={layerRequest}
+                editingBlockId={editingBlockId} onEditText={block=>setEditingBlockId(block.id)}
+                onCommitText={(id,value)=>onChangeBlockSource(id,value,'edit')} onCancelText={()=>setEditingBlockId(null)}
                 onGeometry={onUpdateGeometry} onGestureStart={onGeometryStart}
                 onReset={onResetGeometry}/>}
             </div>
             {activeTemplate&&<TemplateChrome config={activeTemplate} index={page} total={slides.length}/>}
           </div>
-          <div className="f1-preview-caption"><span>SLIDE {String(page+1).padStart(2,'0')}</span><span>Gerado do seu texto</span></div>
+          </div>
+          <div className="f1-preview-caption"><span>SLIDE {String(page+1).padStart(2,'0')}</span>
+            <span>{'Organizado automaticamente · 16:9'}</span></div>
         </div>
+        {arranging&&canEdit&&motionPreview===undefined&&layersOpen&&slideModel&&<LayerPanel slide={slideModel} layout={editorLayout} selected={selectedRects} multiSelect={multiSelect}
+          onPick={(id,additive)=>setLayerRequest({id,additive})}
+          onLayer={(id,direction)=>{
+            const r=selectedRects[id]
+            if(!r||r.locked)return
+            onGeometryStart();onUpdateGeometry(id,{...r,z:Math.max(0,Math.min(100,r.z+direction))})
+          }}/>}
+        </div>
+        {arranging&&canEdit&&slideModel&&<MotionPanel slide={slideModel} motion={editorLayout.motion} block={selectedBlock} locked={Boolean(selectedRect?.locked)}
+          onChange={value=>{setMotionPreview(undefined);onMotionChange(value)}} step={motionPreview}
+          onPreview={()=>{setPreviewNonce(v=>v+1);setMotionPreview(0)}} onAdvance={()=>setMotionPreview(step=>Math.min((step??0)+1,timeline(slideModel.blocks,editorLayout.motion).length))}
+          onStop={()=>setMotionPreview(undefined)}/>}
+        {arranging&&canEdit&&motionPreview===undefined&&<MultiElementTools rects={selectedRects} onChange={rects=>{
+          onGeometryStart();onUpdateGeometries(rects)
+        }}/>}
+        {arranging&&canEdit&&motionPreview===undefined&&selectedBlock&&selectedRect&&!selectedRect.locked&&<ElementFormatPanel key={selectedBlock.id} block={selectedBlock} rect={selectedRect}
+          onEdit={()=>setEditingBlockId(selectedBlock.id)}
+          onDuplicate={()=>onChangeBlockSource(selectedBlock.id,'','duplicate',selectedRect)}
+          onChange={rect=>{onGeometryStart();onUpdateGeometry(selectedBlock.id,rect)}}/>}
+        {arranging&&canEdit&&motionPreview===undefined&&selectedCount===1&&!selectedRect?.locked&&<SlideInspector block={selectedBlock}
+          rect={selectedRect||undefined}
+          onChange={rect=>{
+            if(!selection)return
+            onGeometryStart()
+            onUpdateGeometry(selection.id,rect)
+          }}
+          onReset={()=>{
+            if(selection){onResetGeometry(selection.id);setSelection(null)}
+          }}
+          onClear={()=>setSelection(null)}/>}
         {canEdit && <details className="f1-notes-panel">
           <summary>Notas privadas do professor <ChevronRight size={17}/></summary>
           <div className="note-box f1-note-body">
@@ -256,7 +402,7 @@ export function LessonWorkspace({
           </div>
         </details>}
       </section>
-    </div> : <article className="article f1-article">
+    </div></> : <article className="article f1-article">
       <span className="eyebrow">APOSTILA DIGITAL</span><h1>{title}</h1>
       <MarkdownView markdown={articleMarkdown(markdown)}/>
     </article>}
