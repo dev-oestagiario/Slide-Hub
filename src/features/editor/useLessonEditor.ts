@@ -3,6 +3,8 @@ import type { Dispatch, SetStateAction } from 'react'
 import { supabase } from '../../lib/supabase'
 import { parseSlides } from '../../lib/slideParser'
 import { paginateSlides } from './autoOrganizer'
+import { setBlockRects } from './multiGeometry'
+import type { RectSet } from './multiGeometry'
 import type { Lesson } from '../courses/types'
 import {
   emptyLayout, editorSlides, layoutsEqual, normalizeEditorLayout,
@@ -109,7 +111,11 @@ export function useLessonEditor({lesson,canEdit,autoBreak,userId,onPersist,onNot
     })
     setStatus('pending')
   },[])
+  const updateGeometries=useCallback((updates:RectSet)=>{
+    setLayout(previous=>setBlockRects(previous,updates));setStatus('pending')
+  },[])
   const resetGeometry=useCallback((id:string)=>{
+    if(current.current.layout.overrides[id]?.locked)return
     checkpoint()
     setLayout(previous=>resetBlockRect(previous,id))
     setStatus('pending')
@@ -191,7 +197,7 @@ export function useLessonEditor({lesson,canEdit,autoBreak,userId,onPersist,onNot
 
   return {
     title,markdown,layout,parsed,slideModel,originalSlideKeys,dirty,status,ready:loadedFor===lesson?.id,
-    setTitle,setMarkdown,updateGeometry,resetGeometry,checkpoint,undo,redo,canUndo,canRedo,
+    setTitle,setMarkdown,updateGeometry,updateGeometries,resetGeometry,checkpoint,undo,redo,canUndo,canRedo,
     save:flush
   }
 }
