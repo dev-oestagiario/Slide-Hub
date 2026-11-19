@@ -57,6 +57,7 @@ export function editVisibleBlock(source:string,layout:EditorLayout,id:string,val
   if(mode==='duplicate'&&layout.motion){
     const copied=copyMotion(layout.motion,id,target)!
     delete copied.transitions[target]
+    if(copied.timings){copied.timings={...copied.timings};delete copied.timings[target]}
     next.motion=copied
   }
   // Assign IDs by validated sequence, not similarity, to retain original geometry.
