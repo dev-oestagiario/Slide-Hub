@@ -1,0 +1,32 @@
+name: Homologar TF em produção
+on:
+  workflow_dispatch:
+    inputs:
+      create_issue:
+        description: Criar UMA issue sintética real de QA no GitHub (opcional)
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: slidehub-feedback-production-qa
+  cancel-in-progress: false
+jobs:
+  feedback:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    environment: slidehub-qa
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+      - name: Validate authorized QA accounts and feedback integration
+        env:
+          SLIDEHUB_QA_TEACHER_EMAIL: ${{ secrets.SLIDEHUB_QA_TEACHER_EMAIL }}
+          SLIDEHUB_QA_TEACHER_PASSWORD: ${{ secrets.SLIDEHUB_QA_TEACHER_PASSWORD }}
+          SLIDEHUB_QA_STUDENT_EMAIL: ${{ secrets.SLIDEHUB_QA_STUDENT_EMAIL }}
+          SLIDEHUB_QA_STUDENT_PASSWORD: ${{ secrets.SLIDEHUB_QA_STUDENT_PASSWORD }}
+          SLIDEHUB_QA_CREATE_FEEDBACK_ISSUE: ${{ inputs.create_issue }}
+        run: npx playwright test --config playwright.production.config.ts feedback.spec.ts --project desktop
