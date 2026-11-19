@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, PointerEvent as ReactPointerEvent, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { AlertTriangle, RotateCw } from 'lucide-react'
-import { revealOrder } from './motionModel'
+import { timeline,elementPhase } from './motionModel'
 import { InlineBlockEdit } from './InlineBlockEdit'
 import { appearanceClasses, elementAppearance } from './elementAppearance'
 import { MarkdownView } from '../../components/MarkdownView'
@@ -69,12 +69,17 @@ export function SlideBlockCanvas({
   const [activeGuides,setActiveGuides]=useState<Guide[]>([])
   const hasOverrides=slide.blocks.some(block=>layout.overrides[block.id])
   const separate=arranging||hasOverrides
-  const order=motionStep===undefined?[]:revealOrder(slide.blocks,layout.motion)
-  const revealed=new Set(order.slice(0,motionStep??0))
-  const effectFor=(id:string)=>order.includes(id)?layout.motion?.elements[id]:undefined
-  const motionClass=(id:string)=>effectFor(id)?(revealed.has(id)?' f13-enter f13-enter-'+effectFor(id)!.effect:' f13-awaiting'):''
-  const motionStyle=(id:string)=>({'--f13-duration':(effectFor(id)?.duration??350)+'ms','--f13-opacity':(layout.overrides[id]?.style?.opacity??100)/100} as CSSProperties)
-  const hidden=(id:string)=>Boolean(effectFor(id)&&!revealed.has(id))
+  const events=motionStep===undefined?[]:timeline(slide.blocks,layout.motion)
+  const phase=(id:string)=>elementPhase(events,motionStep??0,id)
+  const effectFor=(id:string)=>events.some(e=>e.id===id)?layout.motion?.elements[id]:undefined
+  const motionClass=(id:string)=>{
+    const effect=effectFor(id)
+    if(!effect)return ''
+    const state=phase(id)
+    return state==='waiting'?' f13-awaiting':state==='exited'?' f14-exit f14-exit-'+effect.exit:' f13-enter f13-enter-'+effect.effect
+  }
+  const motionStyle=(id:string)=>({'--f13-duration':(phase(id)==='exited'?(effectFor(id)?.exitDuration??350):(effectFor(id)?.duration??350))+'ms','--f13-opacity':(layout.overrides[id]?.style?.opacity??100)/100} as CSSProperties)
+  const hidden=(id:string)=>phase(id)==='waiting'||phase(id)==='exited'
   const editingBlock=arranging&&editable?slide.blocks.find(b=>b.id===editingBlockId&&!layout.overrides[b.id]?.locked):undefined
   const selectedBlock=slide.blocks.find(block=>block.id===selection?.id)
   const members=Object.fromEntries(Object.entries(selectionRects(selection,layout)).filter(([id])=>slide.blocks.some(b=>b.id===id))) as RectSet
@@ -307,7 +312,7 @@ export function SlideBlockCanvas({
       }}>
       {!separate
         ?<SlideAutoFit markdown={slide.slide.markdown} layout={slide.slide.layout}>
-          {order.length?slide.blocks.map(block=><div key={block.id} data-motion-block={block.id}
+          {events.length?slide.blocks.map(block=><div key={block.id} data-motion-block={block.id}
             className={'f13-flow-block'+motionClass(block.id)} style={motionStyle(block.id)} aria-hidden={hidden(block.id)||undefined} inert={hidden(block.id)||undefined}>
             <MarkdownView markdown={block.markdown}/></div>):undefined}
         </SlideAutoFit>

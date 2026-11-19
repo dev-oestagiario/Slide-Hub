@@ -320,3 +320,18 @@
 @media(max-width:520px){.f13-thumb-wrap{flex-basis:108px}.f13-motion-actions button{min-height:40px}}
 
 .f13-thumb-wrap:focus-within{outline:2px solid #0b8d79;outline-offset:1px}
+
+.f13-transition{animation-duration:var(--f14-transition-duration,360ms)}
+.f14-exit{pointer-events:none;animation-duration:var(--f13-duration,350ms);animation-fill-mode:forwards;animation-timing-function:ease-in}
+.f14-exit-fade{animation-name:f14-exit-fade}
+.f14-exit-rise{animation-name:f14-exit-rise}
+.f14-exit-slide{animation-name:f14-exit-slide}
+.f14-exit-zoom{animation-name:f14-exit-zoom}
+@keyframes f14-exit-fade{from{opacity:var(--f13-opacity,1)}to{opacity:0;visibility:hidden}}
+@keyframes f14-exit-rise{from{opacity:var(--f13-opacity,1);translate:0 0}to{opacity:0;translate:0 -16px;visibility:hidden}}
+@keyframes f14-exit-slide{from{opacity:var(--f13-opacity,1);translate:0 0}to{opacity:0;translate:-16px 0;visibility:hidden}}
+@keyframes f14-exit-zoom{from{opacity:var(--f13-opacity,1);scale:1}to{opacity:0;scale:.94;visibility:hidden}}
+@media(prefers-reduced-motion:reduce){.f14-exit{animation:none!important;visibility:hidden!important}}
+.f14-rehearsal{display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex-shrink:0;padding:8px 12px;border-top:1px solid currentColor;font-size:11px}
+.f14-rehearsal button{border:1px solid currentColor;border-radius:5px;background:transparent;padding:4px 7px;color:inherit}
+@media(max-width:520px){.f5-presenter-controls button{min-width:30px;min-height:33px;padding:5px}.f14-rehearsal{gap:4px;font-size:10px}}
