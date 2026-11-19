@@ -224,7 +224,8 @@ export function Presentation({
       <strong>{rehearsal?'Ensaio em andamento':'Resultado do ensaio'}</strong>
       <span>{rehearsal?Math.max(0,Math.floor((Date.now()-rehearsalStart)/1000))+' s decorridos':Math.round(Object.values(recorded).reduce((a,b)=>a+b,0)/1000)+' s registrados'}</span>
       <span>Slide atual: {Math.round(((recorded[index]??0)+(rehearsal?Date.now()-enteredAt.current:0))/1000)} s · previsto {Math.round(estimatedDuration(sequence,timing,Boolean(transition))/1000)} s</span>
-      {!rehearsal&&<button type="button" onClick={()=>setRecorded({})}>Limpar ensaio</button>}
+      {!rehearsal&&<details><summary>Tempos por slide</summary><ol>{Object.entries(recorded).sort(([a],[b])=>Number(a)-Number(b)).map(([i,ms])=><li key={i}>Slide {Number(i)+1}: {(ms/1000).toFixed(1)} s</li>)}</ol></details>}
+      {!rehearsal&&<button type="button" onClick={()=>setRecorded({})}>Limpar ensaio</button>
     </aside>}
     <footer className="slide-controls f5-presenter-controls">
       <div>

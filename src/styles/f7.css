@@ -346,3 +346,5 @@
 .f14-timeline-row button{display:grid;place-items:center;border:1px solid #d7e6df;border-radius:5px;background:#f5f9f7;color:#24584d;padding:4px}
 .f14-timeline-row button:disabled{opacity:.4}
 @media(max-width:520px){.f14-timeline-row{grid-template-columns:minmax(60px,1fr) 65px 30px 30px}.f14-time-track{grid-column:1/-1;grid-row:2}}
+
+.f14-rehearsal details{position:relative}.f14-rehearsal details ol{position:absolute;bottom:100%;left:0;z-index:20;max-height:30dvh;min-width:145px;overflow:auto;list-style:none;margin:0;padding:10px;background:#fff;color:#234b43;border:1px solid #ccdcd5;border-radius:6px}.f14-rehearsal details li{padding:3px 0}

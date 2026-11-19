@@ -9,7 +9,7 @@ const transitions:Record<Transition,string>={fade:'Dissolver',slide:'Deslizar',z
 export function MotionPanel({slide,motion,block,locked,onChange,onPreview,onAdvance,onStop,step}:{slide:EditorSlide;motion?:MotionLayout;block?:SlideBlock;locked:boolean;onChange:(next:MotionLayout)=>void;onPreview:()=>void;onAdvance:()=>void;onStop:()=>void;step?:number}){
  const [open,setOpen]=useState(false)
  const [auto,setAuto]=useState(false)
- const current=motion??{elements:{},transitions:{}}
+ const current:MotionLayout=motion??{elements:{},transitions:{}}
  const config=block?current.elements[block.id]:undefined
  const events=timeline(slide.blocks,motion)
  const timing=current.timings?.[slide.key]??DEFAULT_TIMING
@@ -25,7 +25,7 @@ export function MotionPanel({slide,motion,block,locked,onChange,onPreview,onAdva
    else delete next[block.id]
    update({...current,elements:next})
  }
- const move=(id:string,index:number,direction:number,kind:'enter'|'exit')=>{
+ const move=(index:number,direction:number,kind:'enter'|'exit')=>{
    const list=events.filter(e=>e.kind===kind).map(e=>e.id),target=index+direction
    if(target<0||target>=list.length)return
    const next={...current.elements};[list[index],list[target]]=[list[target],list[index]]
@@ -62,8 +62,8 @@ export function MotionPanel({slide,motion,block,locked,onChange,onPreview,onAdva
         <span>{event.kind==='enter'?'Entrada':'Saída'} · {slide.blocks.find(b=>b.id===event.id)?.markdown.replace(/^#+\s*/,'').slice(0,40)}</span>
         <div className="f14-time-track"><span className={event.kind} style={{left:(start/total*100)+'%',width:(event.duration/total*100)+'%'}}/></div>
         <small>{(start/1000).toFixed(1)} s · {event.duration} ms</small>
-        <button type="button" aria-label={'Antecipar '+event.kind+' '+event.id} disabled={position===0} onClick={()=>move(event.id,position,-1,event.kind)}><ChevronUp size={14}/></button>
-        <button type="button" aria-label={'Adiar '+event.kind+' '+event.id} disabled={position===group.length-1} onClick={()=>move(event.id,position,1,event.kind)}><ChevronDown size={14}/></button>
+        <button type="button" aria-label={'Antecipar '+(event.kind==='enter'?'entrada':'saída')+' '+(position+1)} disabled={position===0} onClick={()=>move(position,-1,event.kind)}><ChevronUp size={14}/></button>
+        <button type="button" aria-label={'Adiar '+(event.kind==='enter'?'entrada':'saída')+' '+(position+1)} disabled={position===group.length-1} onClick={()=>move(position,1,event.kind)}><ChevronDown size={14}/></button>
       </div>
     })}
    </div>
