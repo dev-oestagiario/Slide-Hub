@@ -95,8 +95,10 @@ export function splitVisibleBlocks(markdown:string):Array<{kind:BlockKind;markdo
     }
     const currentKind=part.length?kind(part.join('\n')):null
     const nextKind=kind(line)
-    if(part.length && (nextKind==='image'||nextKind==='quote'||nextKind==='table'||
-       (nextKind==='list'&&currentKind!=='list')||(currentKind==='list'&&nextKind!=='list'))){
+    const listContinuation=currentKind==='list'&&/^\s{2,}\S/.test(line)
+    if(part.length && (nextKind==='image'||(nextKind==='quote'&&currentKind!=='quote')||
+       (nextKind==='table'&&currentKind!=='table')||(currentKind==='table'&&nextKind!=='table')||
+       (nextKind==='list'&&currentKind!=='list')||(currentKind==='list'&&nextKind!=='list'&&!listContinuation))){
       flush()
     }
     part.push(line)

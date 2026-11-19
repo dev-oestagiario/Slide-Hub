@@ -62,3 +62,18 @@ test('original blocks keep stable keys after an automatic overflow adds a contin
   assert.equal(firstLayout.blocks.find(x=>x.markdown==='Primeiro conceito')?.id,
     nextLayout.blocks.find(x=>x.markdown==='Primeiro conceito')?.id)
 })
+
+
+test('F15: consecutive table rows stay in one block with their heading and separator',()=>{
+  const table='| Nome | Valor |\n| --- | --- |\n| A | 10 |\n| B | 20 |'
+  const pieces=flowPieces(table)
+  assert.equal(pieces.length,1)
+  assert.equal(pieces[0].kind,'table')
+  assert.equal(pieces[0].markdown,table)
+  assert.equal(paginateSlides(parseSlides('# Tabela\n\n'+table))[0].markdown,'# Tabela\n\n'+table)
+})
+test('F15: nested lists are not split into orphaned children',()=>{
+  const list='- Raiz\n  - A\n  - B\n  - C\n  - D\n  - E\n  - F\n- Final'
+  assert.equal(flowPieces(list).length,1)
+  assert.equal(flowPieces(list)[0].markdown,list)
+})

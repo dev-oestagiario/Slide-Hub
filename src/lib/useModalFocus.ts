@@ -11,7 +11,7 @@ export function useModalFocus(dialog:RefObject<HTMLElement|null>, enabled=true){
     const element=dialog.current
     previous.current=document.activeElement instanceof HTMLElement?document.activeElement:null
     const getFocusables=()=>Array.from(element.querySelectorAll<HTMLElement>(focusable))
-      .filter(item=>item.getClientRects().length>0 && item.getAttribute('aria-hidden')!=='true')
+      .filter(item=>item.getClientRects().length>0 && !item.closest('[inert],[aria-hidden="true"]') && getComputedStyle(item).visibility!=='hidden')
     const initial=element.hasAttribute('data-modal-autofocus')?element:
       element.querySelector<HTMLElement>('[data-modal-autofocus]')??getFocusables()[0]??element
     initial.focus()
@@ -21,7 +21,7 @@ export function useModalFocus(dialog:RefObject<HTMLElement|null>, enabled=true){
       if(!items.length){event.preventDefault();element.focus();return}
       const first=items[0],last=items[items.length-1]
       const active=document.activeElement
-      if(event.shiftKey&&(active===first||!element.contains(active))){
+      if(event.shiftKey&&(active===element||active===first||!element.contains(active))){
         event.preventDefault();last.focus()
       }else if(!event.shiftKey&&(active===last||!element.contains(active))){
         event.preventDefault();first.focus()

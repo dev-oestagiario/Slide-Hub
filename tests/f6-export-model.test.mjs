@@ -48,3 +48,14 @@ test('F6: image references and Mermaid code are disclosed before download',()=>{
   assert.deepEqual(plan.externalImages,['https://example.org/media.png'])
   assert.equal(plan.mermaidCount,1)
 })
+
+
+test('F15: stale manual layout cannot leak replaced or private content into export',()=>{
+  const stale=reconcileEditorLayout(parseSlides('# Aula\n\nCONTEUDO_PRIVADO_ANTIGO'),emptyLayout())
+  const pinned=setBlockRect(stale,stale.blocks[1].id,{x:.1,y:.2,w:.5,h:.3,z:2})
+  const clean=parseSlides('# Aula\n\nTexto público\n\n:::answer\nCONTEUDO_PRIVADO_ANTIGO\n:::')
+  const plan=buildExportPlan({title:'Aula',slides:clean,editorLayout:pinned,theme:DEFAULT_SLIDE_THEME})
+  assert.equal(plan.pages[0].manuallyArranged,false)
+  assert.doesNotMatch(JSON.stringify(plan),/CONTEUDO_PRIVADO_ANTIGO/)
+  assert.match(plan.pages[0].markdown,/Texto público/)
+})

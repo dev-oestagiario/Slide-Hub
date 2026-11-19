@@ -30,6 +30,10 @@ export function flowPieces(markdown:string):FlowPiece[]{
   for(const block of splitVisibleBlocks(markdown)){
     if(block.kind==='list'){
       const lines=block.markdown.split('\n')
+      // Indented items, continuations and loose/complex lists must remain intact.
+      if(lines.some(line=>!/^[-*+]\s+\S|^\d+[.)]\s+\S/.test(line))){
+        result.push({...block,units:estimatePiece(block.kind,block.markdown)});continue
+      }
       let group:string[]=[]
       const flush=()=>{
         if(!group.length)return
