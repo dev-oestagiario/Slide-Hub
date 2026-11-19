@@ -12,7 +12,7 @@ import type { SlideTheme } from './lib/slideThemes'
 import { AppSidebar } from './features/navigation/AppSidebar'
 import { AppTopbar } from './features/navigation/AppTopbar'
 import { FeedbackDialog } from './features/feedback/FeedbackDialog'
-import { sendFeedback } from './features/feedback/sendFeedback'
+import { checkFeedbackAvailability, sendFeedback } from './features/feedback/sendFeedback'
 import { Dashboard } from './features/dashboard/Dashboard'
 import { CourseOverview } from './features/courses/CourseOverview'
 import { LessonWorkspace } from './features/lessons/LessonWorkspace'
@@ -354,7 +354,7 @@ export default function App(){
           />}
       </main>
     </div>
-    {feedbackOpen && canWrite && <FeedbackDialog area={lesson?"editor":templateLibraryOpen?"templates":selectedDiscipline?"discipline":"dashboard"} onClose={()=>setFeedbackOpen(false)} send={sendFeedback}/>
+    {feedbackOpen && canWrite && <FeedbackDialog area={lesson?"editor":templateLibraryOpen?"templates":selectedDiscipline?"discipline":"dashboard"} onClose={()=>setFeedbackOpen(false)} send={sendFeedback} check={checkFeedbackAvailability}/>
     }
     {templateLibraryOpen && lesson && canEdit && <ModalShell label="Biblioteca de templates"
       onClose={()=>setTemplateLibraryOpen(false)}><TemplateLibrary

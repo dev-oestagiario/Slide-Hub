@@ -12,3 +12,10 @@ export async function sendFeedback(payload:FeedbackInput):Promise<FeedbackResult
  }
  return data
 }
+
+/** Checks server-side configuration; never creates an issue. */
+export async function checkFeedbackAvailability():Promise<boolean>{
+ if(!supabase)return false
+ const {data,error}=await supabase.functions.invoke('teacher-feedback',{body:{action:'status'}})
+ return !error&&data?.ready===true
+}

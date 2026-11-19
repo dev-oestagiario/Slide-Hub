@@ -27,7 +27,10 @@ export function makeHandler(deps:Dependencies){
    const chunks:Uint8Array[]=[];let size=0
    while(true){const {done,value}=await reader.read();if(done)break;size+=value.length;if(size>16000){await reader.cancel();return reply(413,{code:'invalid'})}chunks.push(value)}
    const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length}
-   let input;try{input=parseFeedback(JSON.parse(new TextDecoder().decode(bytes)))}catch{return reply(400,{code:'invalid'})}
+   let raw:unknown;try{raw=JSON.parse(new TextDecoder().decode(bytes))}catch{return reply(400,{code:'invalid'})}
+   // Read-only authenticated preflight; no reservation or GitHub call.
+   if(raw&&typeof raw==='object'&&Object.keys(raw).length===1&&'action' in raw&&raw.action==='status')return reply(200,{ready:deps.configured()})
+   const input=parseFeedback(raw)
    if(!input)return reply(400,{code:'invalid'})
    if(!deps.configured())return reply(503,{code:'unavailable'})
    const claim=await deps.claim(user.id,input.requestId)

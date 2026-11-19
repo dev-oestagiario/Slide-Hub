@@ -60,3 +60,17 @@ test('an uncertain GitHub response is not automatically retried',async()=>{
  assert.equal((await h.handler(request())).status,409)
  assert.equal(calls,1)
 })
+
+test('read-only readiness is role-protected and does not consume quota',async()=>{
+ let claims=0
+ const h=harness({configured:()=>false,claim:async()=>{claims++;throw Error('unexpected claim')}})
+ const status={action:'status'}
+ const response=await h.handler(request(status))
+ assert.equal(response.status,200)
+ assert.deepEqual(await response.json(),{ready:false})
+ assert.equal((await h.handler(request(status,'student'))).status,403)
+ assert.equal((await h.handler(request(status,'bad'))).status,401)
+ assert.equal((await h.handler(request({...status,extra:'x'}))).status,400)
+ assert.deepEqual(await (await harness().handler(request(status,'admin'))).json(),{ready:true})
+ assert.equal(claims,0);assert.equal(h.calls(),0)
+})
