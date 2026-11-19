@@ -111,13 +111,13 @@ export function useLessonEditor({lesson,canEdit,autoBreak,userId,onPersist,onNot
     typing.current={field,time:now}
   }
   const setTitle=(value:string)=>{
-    if(!canEdit||loadedFor!==lesson?.id||value===current.current.title)return
+    if(!canEdit||current.current.lessonId!==lesson?.id||loadedFor!==lesson?.id||value===current.current.title)return
     checkpointTyping('title')
     current.current={...current.current,title:value}
     setTitleState(value);setStatus('pending')
   }
   const setMarkdown:Dispatch<SetStateAction<string>>=value=>{
-    if(!canEdit||loadedFor!==lesson?.id)return
+    if(!canEdit||current.current.lessonId!==lesson?.id||loadedFor!==lesson?.id)return
     const before=current.current
     const next=typeof value==='function'?value(before.markdown):value
     if(next===before.markdown)return
@@ -138,7 +138,7 @@ export function useLessonEditor({lesson,canEdit,autoBreak,userId,onPersist,onNot
     setLayout(previous=>setBlockRects(previous,updates));setStatus('pending')
   },[])
   const changeBlockSource=useCallback((id:string,value:string,mode:'edit'|'duplicate',rect?:BlockRect)=>{
-    if(!canEdit||loadedFor!==lesson?.id)return false
+    if(!canEdit||current.current.lessonId!==lesson?.id||loadedFor!==lesson?.id)return false
     const snapshot=current.current
     const result=editVisibleBlock(snapshot.markdown,snapshot.layout,id,value,autoBreak,mode,rect)
     if(!result){onNotify('Não foi possível identificar este bloco com segurança. Edite o Markdown na área Escrever.');return false}
@@ -148,7 +148,7 @@ export function useLessonEditor({lesson,canEdit,autoBreak,userId,onPersist,onNot
     return true
   },[canEdit,loadedFor,lesson?.id,autoBreak,onNotify,checkpoint])
   function slideOperation(page:number,op:SlideOperation):number|null{
-    if(!canEdit||loadedFor!==lesson?.id)return null
+    if(!canEdit||current.current.lessonId!==lesson?.id||loadedFor!==lesson?.id)return null
     const snapshot=current.current
     const next=changeSlide(snapshot.markdown,snapshot.layout,page,autoBreak,op)
     if(!next){onNotify('Não foi possível modificar esta seção. Verifique a estrutura no editor Escrever.');return null}
