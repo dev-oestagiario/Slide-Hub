@@ -62,3 +62,20 @@ jobs:
         env:
           PGPASSWORD: slidehub_ci_only
         run: psql -h 127.0.0.1 -U postgres -d slidehub_ci -v ON_ERROR_STOP=1 -f tests/sql/bootstrap.sql
+
+      - name: Seed disposable REST fixtures
+        env:
+          PGPASSWORD: slidehub_ci_only
+        run: psql -h 127.0.0.1 -U postgres -d slidehub_ci -v ON_ERROR_STOP=1 -f tests/sql/rest-fixtures.sql
+      - name: Test real PostgREST HTTP requests (isolated)
+        env:
+          TEST_JWT_SECRET: slidehub-isolated-ci-fixture-only-secret-20261119
+        run: |
+          docker run -d --name slidehub-postgrest --network host \
+            -e PGRST_DB_URI=postgres://authenticator:slidehub_ci_only@127.0.0.1:5432/slidehub_ci \
+            -e PGRST_DB_SCHEMAS=public -e PGRST_DB_ANON_ROLE=anon \
+            -e PGRST_JWT_SECRET="$TEST_JWT_SECRET" postgrest/postgrest:v12.2.3
+          node tests/sql/rest-security.mjs
+      - name: PostgREST logs on failure
+        if: failure()
+        run: docker logs slidehub-postgrest || true
