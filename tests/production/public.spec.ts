@@ -1,10 +1,13 @@
 import {test,expect} from '@playwright/test'
 
 test('public production: assets, login form and responsive signup navigation',async({page})=>{
- const errors:string[]=[],failedAssets:number[]=[]
+ const errors:string[]=[],failedAssets:(number|string)[]=[]
  page.on('pageerror',()=>errors.push('JavaScript runtime error'))
  page.on('response',r=>{
   if(r.url().startsWith('https://dev-oestagiario.github.io/Slide-Hub/')&&r.status()>=400)failedAssets.push(r.status())
+ })
+ page.on('requestfailed',r=>{
+  if(r.url().startsWith('https://dev-oestagiario.github.io/Slide-Hub/'))failedAssets.push('requestfailed')
  })
  const response=await page.goto('./',{waitUntil:'domcontentloaded'})
  expect(response?.status()).toBe(200)
@@ -12,8 +15,10 @@ test('public production: assets, login form and responsive signup navigation',as
  await expect(page.getByLabel('E-mail',{exact:true})).toBeVisible()
  await expect(page.getByLabel('Senha',{exact:true})).toBeVisible()
  await expect(page.getByRole('button',{name:'Entrar',exact:true})).toBeVisible()
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1)).toBe(true)
  await page.getByRole('button',{name:'Criar conta',exact:true}).click()
  await expect(page.getByRole('button',{name:'Já tenho conta',exact:true})).toBeVisible()
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1)).toBe(true)
  await page.getByRole('button',{name:'Já tenho conta',exact:true}).click()
  await expect(page.getByRole('button',{name:'Entrar',exact:true})).toBeVisible()
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1)).toBe(true)
