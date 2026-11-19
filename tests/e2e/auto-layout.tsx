@@ -5,6 +5,8 @@ import { DEFAULT_SLIDE_THEME, slideBackgroundStyle } from '../../src/lib/slideTh
 import { paginateSlides } from '../../src/features/editor/autoOrganizer'
 import { editorSlides, emptyLayout, reconcileEditorLayout, resetBlockRect, setBlockRect } from '../../src/features/editor/layoutModel'
 import type { EditorLayout } from '../../src/features/editor/layoutModel'
+import { LayerPanel } from '../../src/features/editor/LayerPanel'
+import type { LayerRequest } from '../../src/features/editor/SlideBlockCanvas'
 import { SlideBlockCanvas, selectionRects } from '../../src/features/editor/SlideBlockCanvas'
 import { MultiElementTools } from '../../src/features/editor/MultiElementTools'
 import { setBlockRects } from '../../src/features/editor/multiGeometry'
@@ -26,6 +28,7 @@ function Demo(){
   const [page,setPage]=useState(0)
   const [editing,setEditing]=useState(false)
   const [multiSelect,setMultiSelect]=useState(false)
+  const [layerRequest,setLayerRequest]=useState<LayerRequest|null>(null)
   const [selection,setSelection]=useState<CanvasSelection|null>(null)
   useEffect(()=>{setLayout(previous=>reconcileEditorLayout(slides,previous))},[slides])
   useEffect(()=>setSelection(null),[page])
@@ -49,13 +52,15 @@ function Demo(){
             {slide&&<SlideBlockCanvas slide={slide} layout={layout}
               arranging={editing} editable={true} multiSelect={multiSelect}
               onBatchGeometry={updates=>setLayout(before=>setBlockRects(before,updates))}
-              selection={selection} onSelect={setSelection}
+              selection={selection} onSelect={setSelection} layerRequest={layerRequest}
               onGeometry={(id,rect)=>setLayout(before=>setBlockRect(before,id,rect))}
               onReset={id=>setLayout(before=>resetBlockRect(before,id))}/>}
           </div>
         </div>
       </div>
     </div>
+    {editing&&slide&&<LayerPanel slide={slide} layout={layout} selected={selectionRects(selection,layout)} multiSelect={multiSelect}
+      onPick={(id,additive)=>setLayerRequest({id,additive})} onLayer={(id,direction)=>setLayout(before=>setBlockRect(before,id,{...selectionRects(selection,before)[id],z:Math.max(0,Math.min(100,selectionRects(selection,before)[id].z+direction))}))}/>}
     {editing&&<MultiElementTools rects={selectionRects(selection,layout)} onChange={updates=>setLayout(before=>setBlockRects(before,updates))}/>}
     {editing&&Object.keys(selectionRects(selection,layout)).length===1&&!selectedRect?.locked&&<SlideInspector block={selectedBlock} rect={selectedRect||undefined}
       onChange={rect=>selection&&setLayout(before=>setBlockRect(before,selection.id,rect))}

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
-import { BookOpenText, CheckCircle2, ChevronLeft, ChevronRight, Code2, Columns3, FileText, ImagePlus, List, LayoutTemplate, Mic, Pause, Palette, Play, Plus, Quote, Save, Table2, Upload, Move, Undo2, Redo2, Download, Magnet, ZoomIn, ZoomOut } from 'lucide-react'
+import { BookOpenText, CheckCircle2, ChevronLeft, ChevronRight, Code2, Columns3, FileText, ImagePlus, List, LayoutTemplate, Mic, Pause, Palette, Play, Plus, Quote, Save, Table2, Upload, Move, Undo2, Redo2, Download, Magnet, ZoomIn, ZoomOut, Maximize2, Minimize2, Layers } from 'lucide-react'
 import { MarkdownView } from '../../components/MarkdownView'
 import { articleMarkdown } from '../../lib/slideParser'
 import type { Slide } from '../../lib/slideParser'
@@ -13,7 +13,9 @@ import { TemplateChrome } from '../templates/TemplateChrome'
 import { SlideBlockCanvas, selectionRects } from '../editor/SlideBlockCanvas'
 import { MultiElementTools } from '../editor/MultiElementTools'
 import type { RectSet } from '../editor/multiGeometry'
-import type { CanvasSelection } from '../editor/SlideBlockCanvas'
+import type { CanvasSelection, LayerRequest } from '../editor/SlideBlockCanvas'
+import { LayerPanel } from '../editor/LayerPanel'
+import { useModalFocus } from '../../lib/useModalFocus'
 import { SlideInspector } from '../editor/SlideInspector'
 import type { BlockRect, EditorLayout, EditorSlide } from '../editor/layoutModel'
 import type { DraftStatus } from '../editor/useLessonEditor'
@@ -83,11 +85,25 @@ export function LessonWorkspace({
   const [arranging,setArranging] = useState(false)
   const [selection,setSelection]=useState<CanvasSelection|null>(null)
   const [multiSelect,setMultiSelect]=useState(false)
+  const [layerRequest,setLayerRequest]=useState<LayerRequest|null>(null)
+  const [layersOpen,setLayersOpen]=useState(false)
+  const [expanded,setExpanded]=useState(false)
+  const previewRef=useRef<HTMLElement>(null)
+  useModalFocus(previewRef,expanded)
+  useEffect(()=>{
+    if(!expanded)return
+    const previous=document.body.style.overflow
+    document.body.style.overflow='hidden'
+    const close=(e:KeyboardEvent)=>{if(e.key==='Escape'&&!e.defaultPrevented)setExpanded(false)}
+    window.addEventListener('keydown',close)
+    return ()=>{document.body.style.overflow=previous;window.removeEventListener('keydown',close)}
+  },[expanded])
   const [snap,setSnap]=useState(true)
   const [zoom,setZoom]=useState(100)
   const [mobilePane,setMobilePane]=useState<'write'|'preview'>('write')
-  useEffect(()=>{setArranging(false);setSelection(null);setMobilePane('write')},[lesson.id])
-  useEffect(()=>setSelection(null),[previewPage])
+  useEffect(()=>{setArranging(false);setSelection(null);setLayerRequest(null);setExpanded(false);setLayersOpen(false);setMobilePane('write')},[lesson.id])
+  useEffect(()=>{if(mode!=='edit'||!canEdit)setExpanded(false)},[mode,canEdit])
+  useEffect(()=>{setSelection(null);setLayerRequest(null)},[previewPage])
   const page = Math.min(previewPage, Math.max(0, slides.length - 1))
   const slide = slides[page]
   const slideModel = editorSlides[page]
@@ -222,7 +238,7 @@ export function LessonWorkspace({
         </footer>
       </section>
 
-      <section className="preview-card f1-preview-panel" aria-label="Prévia automática dos slides">
+      <section ref={previewRef} tabIndex={expanded?-1:undefined} className={"preview-card f1-preview-panel "+(expanded?"f10-expanded":"")} role={expanded?"dialog":undefined} aria-modal={expanded?true:undefined} aria-label={expanded?"Editor visual ampliado":"Prévia automática dos slides"}>
         <header className="panel-title f1-panel-head">
           <div><span className="f1-panel-kicker">02 / VISUALIZAR</span><h2>Prévia automática</h2></div>
           <div className="preview-pagination">
@@ -236,7 +252,7 @@ export function LessonWorkspace({
         {canEdit && <div className="f4-layout-toolbar" role="toolbar" aria-label="Ajustes de posição">
           <button type="button" className={'f4-arrange-toggle '+(arranging?'active':'')}
             aria-pressed={arranging} disabled={!editorReady}
-            onClick={()=>{setArranging(value=>!value);setSelection(null)}}>
+            onClick={()=>{if(arranging){setExpanded(false);setLayersOpen(false)}setArranging(value=>!value);setSelection(null);setLayerRequest(null)}}>
             <Move size={16}/> {arranging?'Concluir ajustes':'Organizar visualmente'}
           </button>
           {arranging&&<>
@@ -251,6 +267,10 @@ export function LessonWorkspace({
             aria-pressed={snap} onClick={()=>setSnap(value=>!value)} title="Encaixar na grade">
             <Magnet size={15}/> Grade {snap?'ativada':'livre'}
           </button>}
+          {arranging&&<button type="button" aria-pressed={layersOpen} onClick={()=>setLayersOpen(v=>!v)}><Layers size={16}/> Camadas</button>}
+          {arranging&&<button type="button" aria-pressed={expanded} onClick={()=>setExpanded(v=>!v)}>
+            {expanded?<Minimize2 size={16}/>:<Maximize2 size={16}/>} {expanded?'Fechar modo ampliado':'Ampliar editor'}
+          </button>}
           <div className="f7-zoom-control" role="group" aria-label="Zoom da prévia">
             <button type="button" aria-label="Diminuir zoom" disabled={zoom===75}
               onClick={()=>setZoom(value=>Math.max(75,value-25))}><ZoomOut size={15}/></button>
@@ -262,6 +282,7 @@ export function LessonWorkspace({
             ?'Selecione elementos e arraste, redimensione ou ajuste abaixo'
             :'Organização automática ativa • ajustes visuais opcionais'}</span>
         </div>}
+        <div className={'f10-stage-body '+(layersOpen&&arranging?'f10-with-layers':'')}>
         <div className="f1-preview-stage f7-preview-stage">
           <div className="f7-preview-scroller">
           <div className={[
@@ -277,7 +298,7 @@ export function LessonWorkspace({
                 slide={slideModel} layout={editorLayout} editable={canEdit}
                 arranging={arranging} snap={snap} multiSelect={multiSelect}
                 onBatchGeometry={onUpdateGeometries}
-                selection={selection} onSelect={setSelection}
+                selection={selection} onSelect={setSelection} layerRequest={layerRequest}
                 onGeometry={onUpdateGeometry} onGestureStart={onGeometryStart}
                 onReset={onResetGeometry}/>}
             </div>
@@ -286,6 +307,14 @@ export function LessonWorkspace({
           </div>
           <div className="f1-preview-caption"><span>SLIDE {String(page+1).padStart(2,'0')}</span>
             <span>{'Organizado automaticamente · 16:9'}</span></div>
+        </div>
+        {arranging&&canEdit&&layersOpen&&slideModel&&<LayerPanel slide={slideModel} layout={editorLayout} selected={selectedRects} multiSelect={multiSelect}
+          onPick={(id,additive)=>setLayerRequest({id,additive})}
+          onLayer={(id,direction)=>{
+            const r=selectedRects[id]
+            if(!r||r.locked)return
+            onGeometryStart();onUpdateGeometry(id,{...r,z:Math.max(0,Math.min(100,r.z+direction))})
+          }}/>}
         </div>
         {arranging&&canEdit&&<MultiElementTools rects={selectedRects} onChange={rects=>{
           onGeometryStart();onUpdateGeometries(rects)
