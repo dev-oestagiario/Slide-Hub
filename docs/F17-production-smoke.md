@@ -1,0 +1,44 @@
+# F17 — Smoke de produção
+
+O deploy F7–F17 já está publicado. Esta verificação usa a URL de produção e não a fixture Vite. O job público executa no PR e após deploy aprovado, em desktop e mobile, verificando inicialização, recursos, troca das telas de login/cadastro e overflow horizontal. Nenhuma conta é criada nem dados alterados.
+
+O teste autenticado é opcional e somente workflow_dispatch da main com o ambiente slidehub-qa. Configure previamente:
+- secrets SLIDEHUB_QA_TEACHER_EMAIL / SLIDEHUB_QA_TEACHER_PASSWORD e SLIDEHUB_QA_STUDENT_EMAIL / SLIDEHUB_QA_STUDENT_PASSWORD: contas de QA dedicadas e autorizadas, já confirmadas pelo fluxo normal de autenticação.
+- variável SLIDEHUB_QA_LESSON_TITLE: título exclusivo de uma aula de teste publicada em disciplina pública, pertencente ao professor QA.
+- secret SLIDEHUB_QA_PRIVATE_MARKER: marcador sintético e exclusivo que conste apenas no gabarito da respectiva aula.
+
+No GitHub, Actions > Smoke SlideHub production > Run workflow > authenticated. Testa login real, RPC do proprietário contendo marcador, logout, login de aluno, mesma aula publicada sem marcador, novo logout. Nenhuma gravação de conteúdo, acesso a contas pessoais ou criação automática de usuários; captura de vídeo, screenshot e trace desativadas. Não enviar senhas no chat ou inserir no código. Configure o ambiente na interface GitHub com acesso restrito. Se faltar parâmetro o teste falha explicitamente.
+
+Persistência mediante edição e recuperação de rascunho com conta dedicada continua um smoke manual: usar aula sintética, salvar alteração, recarregar, conferir, restaurar o conteúdo inicial. Testes SQL/HTTP isolados de revisão já aprovados; não substituir a homologação real por esses resultados. Não alterar as aulas existentes.
+
+## Evidência local de homologação — 19/11/2026
+
+Smoke equivalente executado diretamente contra a URL publicada (main `0550d281`), no dispositivo CQP-KAINA-72, Node 24.20.0 e Playwright 1.65.1 com Google Chrome headless. Resultado: desktop 1440×900 e mobile emulado 390×844 aprovados. HTTP 200, formulário de login visível, navegação cadastro → login funcional, zero erros JavaScript, zero recursos com HTTP >=400 ou requisições interrompidas na origem da aplicação. `scrollWidth` igual à largura da viewport (1440 e 390) tanto no login quanto no cadastro. O teste automatizado do PR foi reforçado para cobrir essas verificações. Esta evidência não substitui a execução do workflow com a versão de Playwright do projeto nem os testes autenticados. Nenhuma conta criada ou dado alterado.
+
+## F17.2 — Auditoria de autorização em produção (19/11/2026)
+
+- CI e smoke público do commit `efe7ec63`: sucesso (runs 44519599586 e 44519599587).
+- Supabase de produção confirmado pelo URL do frontend: ACTIVE_HEALTHY. As oito tabelas públicas têm RLS habilitada. A leitura raw de lessons exige proprietário; há guard restritivo adicional. A RPC list_accessible_lessons possui search_path vazio, exige auth.uid() e restringe leitores não proprietários a aulas publicadas de disciplinas públicas. EXECUTE para anon: não; para authenticated: sim, intencionalmente.
+- Teste autenticado ampliado para verificar perfis teacher/student reais e distintos, fixture publicada única, leitura integral do proprietário, projeção sem marcador privado para aluno e ausência de acesso direto do aluno a lessons, lesson_blocks e speaker_notes. Nenhuma escrita de dados, credencial registrada ou captura automática.
+- Security Advisor: dois avisos, não erros: RPC SECURITY DEFINER exposta a authenticated (intencional; manter revisão de grants e predicados; não revogar sem substituir contrato de leitura), proteção contra senhas vazadas desabilitada (recurso Pro ou superior; avaliar configuração e custo, sem upgrade automático).
+- A auditoria de catálogo NÃO equivale a execução do teste com sessão real. Permanecem necessários os secrets e a fixture dedicados; não usar contas pessoais, nem alterar registros reais. Persistência F17.3 e homologação autenticada continuam pendentes.
+
+## F17.3 — Rascunhos e persistência
+
+- Regressão reproduzida: desfazer até a versão salva mantinha o rascunho antigo no localStorage. Antes da correção: 3/4 testes desktop passaram; o teste de limpeza falhou.
+- Limpa o cache quando a versão local coincide com a salva, sem descartar a intenção durante uma gravação em andamento. O teste de conflito preserva o texto e a revisão esperada.
+- Fixture E2E com endpoint Supabase fictício local: autosave, falha de rede/recuperação, conflito e desfazer. 8/8 testes Chrome (desktop/mobile); 96/96 unitários, build aprovado. Corrigido também o caminho fileURLToPath nos testes de skills para Windows.
+- CQP-KAINA-72, Node 24.20.0, Playwright do projeto. Nenhum dado de produção foi escrito. Testes reais autenticados e persistência real ainda dependem de contas e fixture QA autorizadas. Build emitiu aviso de chunks >500 kB.
+## F17.4 — Matriz de autorização
+
+A suíte PostgREST descartável passa a semear notas, blocos e dois tipos de template de dois professores, com casos positivos e negativos. Verifica leitura de perfil próprio, rejeição de promoção de aluno, visibilidade de disciplinas e módulos públicos/privados, isolamento dos templates, bloqueio de alteração/exclusão de registros alheios e vínculo de template apenas com a própria aula. As gravações ocorrem somente no banco descartável de CI. A cobertura não equivale ao login real no Supabase; não executar a suíte contra produção.
+
+Pré-requisito da homologação real: credenciais e aula sintética QA dedicadas; nenhuma conta ou conteúdo pessoal deve ser usado. Nenhuma migration nova nesta etapa.
+
+## F17.5 — Segurança de dependências e reprodução de build
+
+- CI anterior (commit e1db291; runs 44526412860 e 44526412912) aprovado, incluindo matriz PostgREST F17.4.
+- Auditoria inicial no lock local: 11 pacotes sinalizados (9 altos, 1 moderado, 1 baixo; 10 em produção). Atualizações exatas: DOMPurify 3.2.6 → 3.4.18, Vite 7.1.2 → 7.3.8 e Mermaid 11.10.1 → 12.3.0. Mermaid 11.17.2 deixou dois alertas baixos associados a KaTeX, por isso a atualização major foi validada separadamente; a versão 12 requer Node >=22.12, compatível com o Node 22 atualizado dos workflows. Após atualização, npm audit reportou zero vulnerabilidades conhecidas.
+- Adicionado package-lock.json e substituído npm install por npm ci nos workflows de CI, deploy e smoke. CI bloqueia alertas moderados ou superiores. O lock contém dependências nativas para Linux x64/ARM64 e Windows x64 e usa registry.npmjs.org.
+- Testes: 96/96 unitários, 10/10 E2E Chrome desktop/mobile (renderização de fluxograma e sequência, diagrama inválido e rascunhos), build aprovado. O build continua com aviso de chunks acima de 500 kB. Homologação local em CQP-KAINA-72, Node 24.20.0; CI Linux da nova revisão e testes autenticados de produção ainda pendentes. Zero vulnerabilidades no audit não garante ausência de vulnerabilidades no aplicativo.
+- Nenhuma alteração no banco, nas contas ou na main. Os avisos do Supabase registrados em F17.2 continuam separados deste audit: RPC protegida por predicados explícitos e proteção contra senhas vazadas desabilitada. Os testes reais de QA continuam pré-requisito de encerramento.

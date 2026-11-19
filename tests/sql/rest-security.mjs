@@ -56,3 +56,67 @@ const stale=await save(current.editor_revision)
 assert.equal(stale.status,200);assert.deepEqual(stale.data,[])
 assert.equal((await list(student)).data[0].title,'Aula salva pela API')
 console.log('F17 HTTP: RPC, RLS, private notes, persistence and optimistic conflict passed')
+
+ // F17.4: exercise all ownership boundaries against populated fixtures.
+const patchOptions=body=>({method:'PATCH',headers:{'Content-Type':'application/json',Prefer:'return=representation'},body:JSON.stringify(body)})
+const postOptions=body=>({...patchOptions(body),method:'POST'})
+const deleteOptions={method:'DELETE',headers:{Prefer:'return=representation'}}
+const hidden=async(path,sub)=>{
+ const result=await request(path,sub)
+ assert.equal(result.status,200,path)
+ assert.deepEqual(result.data,[],path)
+}
+const blocked=async(path,sub,options)=>{
+ const result=await request(path,sub,options)
+ assert.ok(result.status===403||(result.status===200&&Array.isArray(result.data)&&result.data.length===0),path+' should be denied, got '+result.status)
+}
+const owned=async(table,sub,id)=>{
+ const result=await request('/'+table+'?select=id',sub)
+ assert.equal(result.status,200,table)
+ assert.deepEqual(result.data,[{id}],table)
+}
+for(const [sub,role] of [[owner,'teacher'],[student,'student'],[other,'teacher']]){
+ const p=await request('/profiles?select=id,role',sub)
+ assert.equal(p.status,200)
+ assert.deepEqual(p.data,[{id:sub,role}])
+}
+await blocked('/profiles?id=eq.'+student,student,patchOptions({role:'teacher'}))
+assert.deepEqual((await request('/profiles?select=role',student)).data,[{role:'student'}])
+const publicDiscipline='20000000-0000-0000-0000-000000000001'
+const privateDiscipline='20000000-0000-0000-0000-000000000002'
+const publicModule='30000000-0000-0000-0000-000000000001'
+const privateModule='30000000-0000-0000-0000-000000000002'
+for(const sub of [student,other]){
+ await owned('disciplines',sub,publicDiscipline)
+ await owned('modules',sub,publicModule)
+ await hidden('/disciplines?id=eq.'+privateDiscipline,sub)
+ await hidden('/modules?id=eq.'+privateModule,sub)
+ await hidden('/lesson_blocks?lesson_id=eq.'+lesson,sub)
+ await blocked('/disciplines?id=eq.'+publicDiscipline,sub,patchOptions({title:'QA denied'}))
+ await blocked('/modules?id=eq.'+publicModule,sub,deleteOptions)
+ await blocked('/speaker_notes?lesson_id=eq.'+lesson,sub,patchOptions({notes:'QA denied'}))
+ await blocked('/lesson_blocks?lesson_id=eq.'+lesson,sub,deleteOptions)
+}
+await blocked('/disciplines',student,postOptions({title:'QA denied',owner_id:student}))
+await blocked('/lessons',other,postOptions({title:'QA denied',module_id:publicModule}))
+for(const [table,prefix] of [['slide_templates','5'],['presentation_templates','6']]){
+ const ownerTemplate=prefix+'0000000-0000-0000-0000-000000000001'
+ const peerTemplate=prefix+'0000000-0000-0000-0000-000000000003'
+ await owned(table,owner,ownerTemplate)
+ await owned(table,other,peerTemplate)
+ await hidden('/'+table+'?select=id',student)
+ await blocked('/'+table+'?id=eq.'+ownerTemplate,other,patchOptions({name:'QA denied'}))
+ await blocked('/'+table+'?id=eq.'+peerTemplate,owner,deleteOptions)
+ await blocked('/'+table,student,postOptions({name:'QA denied',owner_id:student}))
+}
+const foreignTemplate=await request('/lessons?id=eq.'+lesson,owner,patchOptions({presentation_template_id:'60000000-0000-0000-0000-000000000003'}))
+assert.equal(foreignTemplate.status,400)
+assert.equal(foreignTemplate.data.code,'23514')
+const ownTemplate=await request('/lessons?id=eq.'+lesson,owner,patchOptions({presentation_template_id:'60000000-0000-0000-0000-000000000001'}))
+assert.equal(ownTemplate.status,200)
+assert.equal(ownTemplate.data.length,1)
+assert.equal(ownTemplate.data[0].presentation_template_id,'60000000-0000-0000-0000-000000000001')
+assert.equal((await request('/lesson_blocks?lesson_id=eq.'+lesson,owner)).data.length,1)
+assert.equal((await request('/speaker_notes?lesson_id=eq.'+lesson,owner)).data.length,1)
+assert.equal((await list(student)).data[0].title,'Aula salva pela API')
+console.log('F17.4 HTTP: profile roles, private disciplines/modules/templates, notes and blocks, ownership and denied writes passed')

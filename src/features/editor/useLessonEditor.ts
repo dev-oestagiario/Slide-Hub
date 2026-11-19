@@ -72,7 +72,9 @@ export function useLessonEditor({lesson,canEdit,autoBreak,userId,onPersist,onNot
       if(!raw)return
       const cached=JSON.parse(raw) as {title?:string;markdown?:string;layout?:unknown;revision?:number}
       if(typeof cached.title!=='string'||typeof cached.markdown!=='string')return
-      if(cached.title===lesson.title&&cached.markdown===lesson.markdown&&layoutsEqual(normalizeEditorLayout(cached.layout),state))return
+      if(cached.title===lesson.title&&cached.markdown===lesson.markdown&&layoutsEqual(normalizeEditorLayout(cached.layout),state)){
+        localStorage.removeItem(cacheKey(userId,lesson.id));return
+      }
       const stale=cached.revision!==undefined&&cached.revision!==(lesson.editor_revision??0)
       const notice=stale
         ?'Este rascunho foi criado a partir de uma revisão anterior da aula. Recuperá-lo pode substituir alterações mais recentes. Deseja recuperar o texto e o layout?'
@@ -206,7 +208,10 @@ export function useLessonEditor({lesson,canEdit,autoBreak,userId,onPersist,onNot
         const baseline=savedRef.current
         const snapshot=current.current
         if(!baseline||snapshot.lessonId!==target||baseline.lessonId!==target)return false
-        if(same(snapshot,baseline)){setStatus('saved');return true}
+        if(same(snapshot,baseline)){
+          try{localStorage.removeItem(cacheKey(userId,target))}catch{/* Optional browser cache */}
+          setStatus('saved');return true
+        }
         if(!snapshot.title.trim()){
           setStatus('error')
           onNotify('O título da aula não pode ficar vazio.')
@@ -243,13 +248,21 @@ export function useLessonEditor({lesson,canEdit,autoBreak,userId,onPersist,onNot
   }
 
   useEffect(()=>{
-    if(!lesson||loadedFor!==lesson.id||!dirty||!canEdit||!userId)return
+    if(!lesson||loadedFor!==lesson.id||!canEdit||!userId)return
+    // Undo may return to the server baseline without another successful save.
+    // During an in-flight write keep the latest intent, even if it matches the old baseline.
+    const inFlight=saving.current?.lessonId===lesson.id
+    if(!dirty&&!inFlight){
+      try{localStorage.removeItem(cacheKey(userId,lesson.id))}catch{/* Optional browser cache */}
+      if(status!=='saved')setStatus('saved')
+      return
+    }
     try{
       localStorage.setItem(cacheKey(userId,lesson.id),JSON.stringify({
         title,markdown,layout,revision:savedRef.current?.revision??0
       }))
     }catch{/* Private mode/quota: keep working in memory */}
-    if(status==='error')return
+    if(!dirty||status==='error')return
     const timer=window.setTimeout(()=>{void flush()},1100)
     return ()=>window.clearTimeout(timer)
     // flush uses refs to serialize latest version, not a stale render.

@@ -1,0 +1,49 @@
+name: Smoke SlideHub production
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      authenticated:
+        description: Test authorized QA accounts (requires configured environment secrets)
+        type: boolean
+        default: false
+  workflow_run:
+    workflows: ["Deploy SlideHub to GitHub Pages"]
+    types: [completed]
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  public:
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+      - name: Smoke público e verificação pós-deploy
+        env:
+          EXPECTED_RELEASE_SHA: ${{ github.event.workflow_run.head_sha || '' }}
+        run: npx playwright test --config playwright.production.config.ts public.spec.ts
+  authenticated:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.authenticated
+    environment: slidehub-qa
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --no-audit --no-fund
+      - name: Verify production authorization with dedicated QA accounts
+        env:
+          SLIDEHUB_QA_TEACHER_EMAIL: ${{ secrets.SLIDEHUB_QA_TEACHER_EMAIL }}
+          SLIDEHUB_QA_TEACHER_PASSWORD: ${{ secrets.SLIDEHUB_QA_TEACHER_PASSWORD }}
+          SLIDEHUB_QA_STUDENT_EMAIL: ${{ secrets.SLIDEHUB_QA_STUDENT_EMAIL }}
+          SLIDEHUB_QA_STUDENT_PASSWORD: ${{ secrets.SLIDEHUB_QA_STUDENT_PASSWORD }}
+          SLIDEHUB_QA_LESSON_TITLE: ${{ vars.SLIDEHUB_QA_LESSON_TITLE }}
+          SLIDEHUB_QA_PRIVATE_MARKER: ${{ secrets.SLIDEHUB_QA_PRIVATE_MARKER }}
+        run: npx playwright test --config playwright.production.config.ts authenticated.spec.ts --project desktop

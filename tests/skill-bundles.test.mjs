@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 
 const catalog = JSON.parse(readFileSync(new URL('../skills/catalog.json', import.meta.url), 'utf8'))
 const { bundles } = JSON.parse(readFileSync(new URL('../skills/bundles.json', import.meta.url), 'utf8'))
@@ -11,7 +12,7 @@ const requested = [
   'improve-codebase-architecture', 'domain-modeling', 'codebase-design', 'code-review', 'writing-plans', 'supabase-postgres-best-practices'
 ]
 function run(...args) {
-  return spawnSync(process.execPath, [new URL('../scripts/install-skills.mjs', import.meta.url).pathname, ...args], {
+  return spawnSync(process.execPath, [fileURLToPath(new URL('../scripts/install-skills.mjs', import.meta.url)), ...args], {
     encoding: 'utf8'
   })
 }

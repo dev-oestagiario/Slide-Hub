@@ -14,12 +14,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm install --no-audit --no-fund
+      - run: npm ci --no-audit --no-fund
+      - run: npm audit --audit-level=moderate
       - run: npm test
       - run: npm run build
         env:
           VITE_SUPABASE_URL: https://example.supabase.co
           VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_placeholder
+      - run: node scripts/release-manifest.mjs
       - run: npm run skills:check
   e2e:
     # Playwright 1.56 supports Ubuntu 24.04; runner default Ubuntu 26 is not supported.
@@ -29,7 +31,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm install --no-audit --no-fund
+      - run: npm ci --no-audit --no-fund
       - run: npm run test:e2e
       - name: Evidências E2E em falhas
         if: failure()
