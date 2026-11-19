@@ -4,6 +4,8 @@ import { supabase } from '../../lib/supabase'
 import { parseSlides } from '../../lib/slideParser'
 import { paginateSlides } from './autoOrganizer'
 import { editVisibleBlock } from './sourceEdits'
+import { changeSlide } from './slideOperations'
+import type { SlideOperation } from './slideOperations'
 import { setBlockRects } from './multiGeometry'
 import type { RectSet } from './multiGeometry'
 import type { Lesson } from '../courses/types'
@@ -40,8 +42,9 @@ export function useLessonEditor({lesson,canEdit,autoBreak,userId,onPersist,onNot
   const current=useRef<Snapshot>({lessonId:'',title:'',markdown:'',layout:emptyLayout()})
   const savedRef=useRef<Saved|null>(null)
   const saving=useRef<{lessonId:string;job:Promise<boolean>}|null>(null)
-  const history=useRef<EditorLayout[]>([])
-  const redoHistory=useRef<EditorLayout[]>([])
+  const history=useRef<Snapshot[]>([])
+  const redoHistory=useRef<Snapshot[]>([])
+  const typing=useRef<{field:'title'|'markdown';time:number}|null>(null)
 
   const parsed=useMemo(()=>paginateSlides(parseSlides(markdown,autoBreak)),[markdown,autoBreak])
   const slideModel=useMemo(()=>editorSlides(parsed,layout),[parsed,layout])
@@ -59,7 +62,7 @@ export function useLessonEditor({lesson,canEdit,autoBreak,userId,onPersist,onNot
     setMarkdownState(lesson?.markdown||'')
     setLayout(next)
     setStatus('saved')
-    history.current=[];redoHistory.current=[];setHistoryNumber(value=>value+1)
+    history.current=[];redoHistory.current=[];typing.current=null;setHistoryNumber(value=>value+1)
     setLoadedFor(lesson?.id||'')
     if(!lesson||!canEdit||!userId)return
     try{
@@ -91,20 +94,38 @@ export function useLessonEditor({lesson,canEdit,autoBreak,userId,onPersist,onNot
     })
   },[parsed,lesson?.id,loadedFor])
 
-  const setTitle=useCallback((value:string)=>{
-    setTitleState(value);setStatus('pending')
-  },[])
-  const setMarkdown:Dispatch<SetStateAction<string>>=useCallback(value=>{
-    setMarkdownState(value);setStatus('pending')
-  },[])
   current.current={lessonId:lesson?.id||'',title,markdown,layout}
   const dirty=Boolean(canEdit&&lesson&&loadedFor===lesson.id&&saved&&saved.lessonId===lesson.id&&!same(current.current,saved))
   const checkpoint=useCallback(()=>{
-    history.current.push(current.current.layout)
+    typing.current=null
+    const snapshot=current.current
+    const last=history.current.at(-1)
+    if(!last||!same(last,snapshot))history.current.push(snapshot)
     if(history.current.length>50)history.current.shift()
     redoHistory.current=[]
     setHistoryNumber(v=>v+1)
   },[])
+  function checkpointTyping(field:'title'|'markdown'){
+    const now=Date.now()
+    if(typing.current?.field!==field||now-typing.current.time>900)checkpoint()
+    typing.current={field,time:now}
+  }
+  const setTitle=(value:string)=>{
+    if(!canEdit||loadedFor!==lesson?.id||value===current.current.title)return
+    checkpointTyping('title')
+    current.current={...current.current,title:value}
+    setTitleState(value);setStatus('pending')
+  }
+  const setMarkdown:Dispatch<SetStateAction<string>>=value=>{
+    if(!canEdit||loadedFor!==lesson?.id)return
+    const before=current.current
+    const next=typeof value==='function'?value(before.markdown):value
+    if(next===before.markdown)return
+    checkpointTyping('markdown')
+    const nextLayout=reconcileEditorLayout(paginateSlides(parseSlides(next,autoBreak)),before.layout)
+    current.current={...before,markdown:next,layout:nextLayout}
+    setMarkdownState(next);setLayout(nextLayout);setStatus('pending')
+  }
   const updateGeometry=useCallback((id:string,rect:BlockRect)=>{
     setLayout(previous=>{
       if(previous.overrides[id]?.locked)return previous
@@ -121,30 +142,44 @@ export function useLessonEditor({lesson,canEdit,autoBreak,userId,onPersist,onNot
     const snapshot=current.current
     const result=editVisibleBlock(snapshot.markdown,snapshot.layout,id,value,autoBreak,mode,rect)
     if(!result){onNotify('Não foi possível identificar este bloco com segurança. Edite o Markdown na área Escrever.');return false}
+    checkpoint()
     current.current={...snapshot,markdown:result.markdown,layout:result.layout}
     setMarkdownState(result.markdown);setLayout(result.layout);setStatus('pending')
-    // Geometry-only history must not restore outdated block identities after a source change.
-    history.current=[];redoHistory.current=[];setHistoryNumber(v=>v+1)
     return true
-  },[canEdit,loadedFor,lesson?.id,autoBreak,onNotify])
+  },[canEdit,loadedFor,lesson?.id,autoBreak,onNotify,checkpoint])
+  function slideOperation(page:number,op:SlideOperation):number|null{
+    if(!canEdit||loadedFor!==lesson?.id)return null
+    const snapshot=current.current
+    const next=changeSlide(snapshot.markdown,snapshot.layout,page,autoBreak,op)
+    if(!next){onNotify('Não foi possível modificar esta seção. Verifique a estrutura no editor Escrever.');return null}
+    checkpoint()
+    current.current={...snapshot,markdown:next.markdown,layout:next.layout}
+    setMarkdownState(next.markdown);setLayout(next.layout);setStatus('pending')
+    return next.page
+  }
   const resetGeometry=useCallback((id:string)=>{
     if(current.current.layout.overrides[id]?.locked)return
     checkpoint()
     setLayout(previous=>resetBlockRect(previous,id))
     setStatus('pending')
   },[checkpoint])
-  const undo=useCallback(()=>{
+  function restore(snapshot:Snapshot){
+    const nextLayout=reconcileEditorLayout(paginateSlides(parseSlides(snapshot.markdown,autoBreak)),snapshot.layout)
+    current.current={...snapshot,layout:nextLayout}
+    typing.current=null
+    setTitleState(snapshot.title);setMarkdownState(snapshot.markdown);setLayout(nextLayout)
+    setStatus('pending');setHistoryNumber(v=>v+1)
+  }
+  const undo=()=>{
     const previous=history.current.pop()
-    if(!previous)return
-    redoHistory.current.push(current.current.layout)
-    setLayout(previous);setStatus('pending');setHistoryNumber(v=>v+1)
-  },[])
-  const redo=useCallback(()=>{
+    if(!previous||previous.lessonId!==current.current.lessonId)return
+    redoHistory.current.push(current.current);restore(previous)
+  }
+  const redo=()=>{
     const next=redoHistory.current.pop()
-    if(!next)return
-    history.current.push(current.current.layout)
-    setLayout(next);setStatus('pending');setHistoryNumber(v=>v+1)
-  },[])
+    if(!next||next.lessonId!==current.current.lessonId)return
+    history.current.push(current.current);restore(next)
+  }
   const canUndo=historyNumber>=0&&history.current.length>0
   const canRedo=historyNumber>=0&&redoHistory.current.length>0
 
@@ -210,7 +245,7 @@ export function useLessonEditor({lesson,canEdit,autoBreak,userId,onPersist,onNot
 
   return {
     title,markdown,layout,parsed,slideModel,originalSlideKeys,dirty,status,ready:loadedFor===lesson?.id,
-    setTitle,setMarkdown,changeBlockSource,updateGeometry,updateGeometries,resetGeometry,checkpoint,undo,redo,canUndo,canRedo,
+    setTitle,setMarkdown,changeBlockSource,slideOperation,updateGeometry,updateGeometries,resetGeometry,checkpoint,undo,redo,canUndo,canRedo,
     save:flush
   }
 }

@@ -18,6 +18,7 @@ export function estimatePiece(kind:BlockKind,markdown:string):number{
   if(kind==='image')return 6.1
   if(kind==='list')return 0.7+lines.filter(x=>/^\s*(?:[-*+]\s+|\d+[.)]\s+)/.test(x)).length*1.02
   if(kind==='table')return 2.0+lines.length*.83
+  if(kind==='code'&&/^\s*\x60{3,}slide-shape\s*\n/.test(markdown))return 2.6
   if(kind==='code')return 2.1+lines.length*.62
   if(kind==='quote')return 1.3+Math.ceil(chars/65)*.8
   return .75+Math.ceil(chars/62)*.7+Math.max(0,lines.length-1)*.4

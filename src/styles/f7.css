@@ -260,3 +260,5 @@
 .f11-inline-edit button:last-child{background:#0b8d79;color:#fff}
 .f11-inline-edit small{font-size:10px;color:#9c3e25}
 @media(max-width:520px){.f11-format-panel{padding:10px}.f11-format-panel button{min-height:36px}}
+
+.f12-shape{display:block;width:min(100%,180px);height:auto;max-height:100%;margin-inline:auto}.f4-pinned:has(.f12-shape) pre,.f6-manual-block:has(.f12-shape) pre{height:100%;margin:0!important}.f4-pinned .f12-shape,.f6-manual-block .f12-shape{width:100%;height:100%}.f11-ink .f12-shape{color:var(--f11-ink)!important}pre:has(>.f12-shape){background:transparent!important;padding:0!important;border:0!important;box-shadow:none!important;white-space:normal!important}
