@@ -199,15 +199,15 @@ export function LessonWorkspace({
         </p>
       </div>
       <div className="actions f1-editor-actions">
-        {canEdit && <button className="button subtle" onClick={onPublish}>{lesson.status === 'published' ? 'Despublicar' : 'Publicar'}</button>}
-        {canEdit && <button className="button secondary" onClick={onSave} disabled={!dirty || busy}>
+        {canEdit && <button className="button subtle" onClick={onPublish} disabled={!editorReady}>{lesson.status === 'published' ? 'Despublicar' : 'Publicar'}</button>}
+        {canEdit && <button className="button secondary" onClick={onSave} disabled={!editorReady || !dirty || busy}>
           <Save size={17}/> Salvar
         </button>}
-        {canEdit && <button className="button secondary" onClick={onExport}
+        {canEdit && <button className="button secondary" onClick={onExport} disabled={!editorReady}
           title="Exportar slides em HTML ou imprimir como PDF">
           <Download size={17}/> Exportar
         </button>}
-        <button className="button primary" onClick={onPresent} title="Apresentar usando o conteúdo atual">
+        <button className="button primary" onClick={onPresent} disabled={!editorReady} title="Apresentar usando o conteúdo atual">
           <Play size={17}/> Apresentar
         </button>
       </div>
