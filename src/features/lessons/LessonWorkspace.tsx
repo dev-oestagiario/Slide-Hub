@@ -18,7 +18,7 @@ import { LayerPanel } from '../editor/LayerPanel'
 import { useModalFocus } from '../../lib/useModalFocus'
 import { ElementFormatPanel } from '../editor/ElementFormatPanel'
 import { MotionPanel } from '../editor/MotionPanel'
-import { revealOrder } from '../editor/motionModel'
+import { timeline } from '../editor/motionModel'
 import type { MotionLayout } from '../editor/motionModel'
 import { SlideLibrary } from '../editor/SlideLibrary'
 import type { SlideOperation } from '../editor/slideOperations'
@@ -340,7 +340,7 @@ export function LessonWorkspace({
             activeTemplate?.footer.text||activeTemplate?.footer.showPageNumber?'f3-with-footer':''
           ].join(' ')} style={{...slideBackgroundStyle(themeForSlide(
             visualThemeForSlide(activeTemplate,theme,inferSlideKind(slide,page)),slide.theme
-          )),width:zoom+'%'}}>
+          )),width:zoom+'%','--f14-transition-duration':(editorLayout.motion?.timings?.[slideModel?.key??'']?.transitionDuration??360)+'ms'} as React.CSSProperties}>
             <div className="f3-preview-content f4-preview-shell">
               {slideModel && <SlideBlockCanvas
                 slide={slideModel} layout={editorLayout} editable={canEdit}
@@ -368,7 +368,7 @@ export function LessonWorkspace({
         </div>
         {arranging&&canEdit&&slideModel&&<MotionPanel slide={slideModel} motion={editorLayout.motion} block={selectedBlock} locked={Boolean(selectedRect?.locked)}
           onChange={value=>{setMotionPreview(undefined);onMotionChange(value)}} step={motionPreview}
-          onPreview={()=>{setPreviewNonce(v=>v+1);setMotionPreview(0)}} onAdvance={()=>setMotionPreview(step=>Math.min((step??0)+1,revealOrder(slideModel.blocks,editorLayout.motion).length))}
+          onPreview={()=>{setPreviewNonce(v=>v+1);setMotionPreview(0)}} onAdvance={()=>setMotionPreview(step=>Math.min((step??0)+1,timeline(slideModel.blocks,editorLayout.motion).length))}
           onStop={()=>setMotionPreview(undefined)}/>}
         {arranging&&canEdit&&motionPreview===undefined&&<MultiElementTools rects={selectedRects} onChange={rects=>{
           onGeometryStart();onUpdateGeometries(rects)

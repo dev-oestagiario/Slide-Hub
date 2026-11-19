@@ -3,7 +3,7 @@ import {createRoot} from 'react-dom/client'
 import {useLessonEditor} from '../../src/features/editor/useLessonEditor'
 import {Presentation} from '../../src/components/Presentation'
 import {MotionPanel} from '../../src/features/editor/MotionPanel'
-import {revealOrder} from '../../src/features/editor/motionModel'
+import {timeline} from '../../src/features/editor/motionModel'
 import {SlideLibrary} from '../../src/features/editor/SlideLibrary'
 import {SlideBlockCanvas} from '../../src/features/editor/SlideBlockCanvas'
 import {ExportPages} from '../../src/features/export/ExportPages'
@@ -43,7 +43,7 @@ function Fixture(){
   <button onClick={()=>setPresenting(true)}>Apresentar aula QA</button>
   {model&&<MotionPanel slide={model} motion={editor.layout.motion} block={model.blocks[selected]} locked={false} step={preview}
     onChange={value=>{editor.updateMotion(value);setPreview(undefined)}} onPreview={()=>{setNonce(v=>v+1);setPreview(0)}}
-    onAdvance={()=>setPreview(v=>Math.min((v??0)+1,revealOrder(model.blocks,editor.layout.motion).length))} onStop={()=>setPreview(undefined)}/>}
+    onAdvance={()=>setPreview(v=>Math.min((v??0)+1,timeline(model.blocks,editor.layout.motion).length))} onStop={()=>setPreview(undefined)}/>}
   <span role="status">{notice}</span>
   {presenting&&<Presentation title={editor.title} slides={editor.parsed} editorSlides={editor.slideModel} editorLayout={editor.layout} theme={DEFAULT_SLIDE_THEME} canEdit={true} notes={[]} onClose={()=>setPresenting(false)}/>}
   {exports&&<ExportPages plan={buildExportPlan({title:editor.title,slides:editor.parsed,theme:DEFAULT_SLIDE_THEME,editorLayout:editor.layout})}/>}

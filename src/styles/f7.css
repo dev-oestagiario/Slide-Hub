@@ -335,3 +335,14 @@
 .f14-rehearsal{display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex-shrink:0;padding:8px 12px;border-top:1px solid currentColor;font-size:11px}
 .f14-rehearsal button{border:1px solid currentColor;border-radius:5px;background:transparent;padding:4px 7px;color:inherit}
 @media(max-width:520px){.f5-presenter-controls button{min-width:30px;min-height:33px;padding:5px}.f14-rehearsal{gap:4px;font-size:10px}}
+
+.f14-timeline{display:grid;gap:6px;border:1px solid #dbe7e0;border-radius:8px;padding:8px;max-height:280px;overflow:auto}
+.f14-timeline header{display:flex;align-items:center;justify-content:space-between;font-size:11px;gap:5px}
+.f14-timeline-row{display:grid;grid-template-columns:minmax(65px,1fr) minmax(65px,1fr) 72px 26px 26px;gap:4px;align-items:center;font-size:10px}
+.f14-timeline-row>span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.f14-time-track{height:10px;border-radius:4px;position:relative;background:#e4ece8;overflow:hidden}
+.f14-time-track span{position:absolute;height:100%;min-width:2px;background:#0b8d79;border-radius:3px}
+.f14-time-track span.exit{background:#8d687c}
+.f14-timeline-row button{display:grid;place-items:center;border:1px solid #d7e6df;border-radius:5px;background:#f5f9f7;color:#24584d;padding:4px}
+.f14-timeline-row button:disabled{opacity:.4}
+@media(max-width:520px){.f14-timeline-row{grid-template-columns:minmax(60px,1fr) 65px 30px 30px}.f14-time-track{grid-column:1/-1;grid-row:2}}
