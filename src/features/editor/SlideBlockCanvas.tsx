@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, PointerEvent as ReactPointerEvent, KeyboardEvent as ReactKeyboardEvent } from 'react'
-import { AlertTriangle } from 'lucide-react'
+import { AlertTriangle, RotateCw } from 'lucide-react'
 import { MarkdownView } from '../../components/MarkdownView'
 import { SlideAutoFit } from './SlideAutoFit'
 import { movingGuides, snapGeometry, resizeGeometry, RESIZE_HANDLES } from './geometryTools'
 import type { ResizeHandle } from './geometryTools'
 import { bounds, moveSelection } from './multiGeometry'
+import { angleAt, resizeGroup, rotateBy, smartMove } from './studioGeometry'
+import type { Corner, Guide } from './studioGeometry'
 import type { RectSet } from './multiGeometry'
 import { normalizeRect, slideCollisions } from './layoutModel'
 import type { BlockRect, EditorLayout, EditorSlide, SlideBlock } from './layoutModel'
@@ -13,7 +15,9 @@ import type { BlockRect, EditorLayout, EditorSlide, SlideBlock } from './layoutM
 export type CanvasSelection={id:string;rect:BlockRect;members?:RectSet}
 export const selectionRects=(selection:CanvasSelection|null|undefined,layout:EditorLayout):RectSet=>
   selection?Object.fromEntries(Object.entries(selection.members??{[selection.id]:selection.rect}).map(([id,rect])=>[id,layout.overrides[id]??rect])):{}
+export type LayerRequest={id:string;additive:boolean}
 type Props={
+  layerRequest?:LayerRequest|null
   slide:EditorSlide
   layout:EditorLayout
   editable?:boolean
@@ -30,7 +34,7 @@ type Props={
 }
 type Drag={
   id:string
-  mode:'move'|ResizeHandle
+  mode:'move'|'rotate'|ResizeHandle
   pointer:number
   x:number;y:number
   width:number;height:number
@@ -38,6 +42,8 @@ type Drag={
   changed:boolean
   proportional:boolean
   members:RectSet
+  peers:RectSet
+  centerX:number;centerY:number;angle:number
 }
 const labelFor=(block:SlideBlock)=>({
   heading:'Título',paragraph:'Parágrafo',list:'Lista',image:'Imagem',
@@ -45,13 +51,14 @@ const labelFor=(block:SlideBlock)=>({
 })[block.kind]
 
 export function SlideBlockCanvas({
-  slide,layout,editable=false,arranging=false,snap=true,multiSelect=false,selection,onSelect,onBatchGeometry,
+  slide,layout,editable=false,arranging=false,snap=true,multiSelect=false,layerRequest,selection,onSelect,onBatchGeometry,
   onGeometry,onGestureStart,onReset,onOverflow
 }:Props){
   const area=useRef<HTMLDivElement>(null)
   const dragging=useRef<Drag|null>(null)
   const [overflow,setOverflow]=useState(0)
   const [overlaps,setOverlaps]=useState(0)
+  const [activeGuides,setActiveGuides]=useState<Guide[]>([])
   const hasOverrides=slide.blocks.some(block=>layout.overrides[block.id])
   const separate=arranging||hasOverrides
   const selectedBlock=slide.blocks.find(block=>block.id===selection?.id)
@@ -166,7 +173,17 @@ export function SlideBlockCanvas({
     return chosen
   }
 
-  function pointerDown(event:ReactPointerEvent<HTMLElement>,block:SlideBlock,mode:'move'|ResizeHandle){
+  useEffect(()=>{
+    if(!arranging||!editable||!layerRequest)return
+    const block=slide.blocks.find(b=>b.id===layerRequest.id)
+    const node=Array.from(area.current?.querySelectorAll<HTMLElement>('[data-slide-block]')??[])
+      .find(item=>item.dataset.slideBlock===layerRequest.id)
+    if(block&&node)select(block,node,layerRequest.additive)
+    // React to a new explicit layer selection request only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  },[layerRequest])
+
+  function pointerDown(event:ReactPointerEvent<HTMLElement>,block:SlideBlock,mode:'move'|'rotate'|ResizeHandle){
     if(!editable||!arranging||event.button!==0)return
     if(mode==='move' && (event.target as HTMLElement).closest('button,a,input,textarea,select'))return
     event.preventDefault()
@@ -176,12 +193,20 @@ export function SlideBlockCanvas({
     const stage=area.current?.getBoundingClientRect()
     if(!node||!stage)return
     const additive=mode==='move'&&(multiSelect||event.shiftKey||event.ctrlKey||event.metaKey)
-    const chosen=select(block,node,additive,mode==='move'&&!additive)
+    const chosen=select(block,node,additive,!additive)
     event.currentTarget.focus({preventScroll:true})
     if(additive||Object.values(chosen).some(r=>r.locked)||!chosen[block.id])return
     const rect=chosen[block.id]
+    const peers:RectSet={}
+    for(const other of Array.from(area.current?.querySelectorAll<HTMLElement>('[data-slide-block]')??[])){
+      const id=other.dataset.slideBlock
+      if(id&&!chosen[id])peers[id]=layout.overrides[id]??initial(other)
+    }
+    const centerX=stage.left+(rect.x+rect.w/2)*stage.width
+    const centerY=stage.top+(rect.y+rect.h/2)*stage.height
     dragging.current={id:block.id,mode,pointer:event.pointerId,x:event.clientX,y:event.clientY,
-      initial:rect,width:stage.width||1,height:stage.height||1,changed:false,proportional:block.kind==='image',members:chosen}
+      initial:rect,width:stage.width||1,height:stage.height||1,changed:false,proportional:block.kind==='image',members:chosen,peers,centerX,centerY,
+      angle:angleAt(event.clientX,event.clientY,centerX,centerY)}
     event.currentTarget.setPointerCapture(event.pointerId)
   }
 
@@ -195,20 +220,34 @@ export function SlideBlockCanvas({
       onGestureStart?.()
     }
     const x=deltaX/active.width,y=deltaY/active.height
-    if(active.mode==='move'&&Object.keys(active.members).length>1){
-      const target=snapGeometry({...active.initial,x:active.initial.x+x,y:active.initial.y+y},'move',snap&&!event.altKey)
-      onBatchGeometry?.(moveSelection(active.members,target.x-active.initial.x,target.y-active.initial.y))
+    const count=Object.keys(active.members).length
+    if(active.mode==='rotate'){
+      if(count===1)onGeometry?.(active.id,rotateBy(active.initial,
+        angleAt(event.clientX,event.clientY,active.centerX,active.centerY)-active.angle,event.shiftKey))
       return
     }
-    const next=active.mode==='move'
-      ?snapGeometry({...active.initial,x:active.initial.x+x,y:active.initial.y+y},'move',snap&&!event.altKey)
-      :resizeGeometry(active.initial,active.mode,x,y,snap&&!event.altKey,active.proportional||event.shiftKey)
+    if(active.mode==='move'){
+      const target=snapGeometry({...active.initial,x:active.initial.x+x,y:active.initial.y+y},'move',snap&&!event.altKey)
+      const deltaX=target.x-active.initial.x,deltaY=target.y-active.initial.y
+      const result=snap&&!event.altKey?smartMove(active.members,active.peers,x,y,6/active.width,6/active.height):null
+      const updates=result?.guides.length?result.updates:moveSelection(active.members,deltaX,deltaY)
+      setActiveGuides(result?.guides??[])
+      if(count>1)onBatchGeometry?.(updates)
+      else if(updates[active.id])onGeometry?.(active.id,updates[active.id])
+      return
+    }
+    if(count>1){
+      if(['nw','ne','sw','se'].includes(active.mode))onBatchGeometry?.(resizeGroup(active.members,active.mode as Corner,x,y))
+      return
+    }
+    const next=resizeGeometry(active.initial,active.mode,x,y,snap&&!event.altKey,active.proportional||event.shiftKey)
     onGeometry?.(active.id,next)
   }
   function pointerUp(event:ReactPointerEvent<HTMLElement>){
     if(dragging.current?.pointer===event.pointerId){
       pointerMove(event)
       dragging.current=null
+      setActiveGuides([])
     }
   }
   function keyDown(event:ReactKeyboardEvent<HTMLElement>,block:SlideBlock,mode:'move'|ResizeHandle){
@@ -233,6 +272,10 @@ export function SlideBlockCanvas({
     const x=direction[0]*step,y=direction[1]*step
     if(mode==='move'&&Object.keys(chosen).length>1){
       onGestureStart?.();onBatchGeometry?.(moveSelection(chosen,x,y));return
+    }
+    if(mode!=='move'&&Object.keys(chosen).length>1){
+      if(['nw','ne','sw','se'].includes(mode)){onGestureStart?.();onBatchGeometry?.(resizeGroup(chosen,mode as Corner,x,y))}
+      return
     }
     const next=mode==='move'?normalizeRect({...rect,x:rect.x+x,y:rect.y+y})
       :resizeGeometry(rect,mode,x,y,false,block.kind==='image')
@@ -263,7 +306,7 @@ export function SlideBlockCanvas({
             aria-label={arranging?'Selecionar e mover '+labelFor(block):undefined}
             aria-pressed={arranging?chosen:undefined}
             onPointerDown={event=>pointerDown(event,block,'move')}
-            onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={()=>{dragging.current=null}}
+            onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={()=>{dragging.current=null;setActiveGuides([])}}
             onKeyDown={event=>{if(event.target===event.currentTarget)keyDown(event,block,'move')}}>
             <MarkdownView markdown={block.markdown}/>
           </div>
@@ -272,17 +315,27 @@ export function SlideBlockCanvas({
         style={{left:selectedRect.x*100+'%',top:selectedRect.y*100+'%',
           width:selectedRect.w*100+'%',height:selectedRect.h*100+'%',
           transform:selectedRect.rotation?'rotate('+selectedRect.rotation+'deg)':undefined}}>
+        {!selectedRect.locked&&<button className="f10-rotate-handle" type="button" title="Gire arrastando; Shift encaixa a 15°" aria-label="Girar livremente"
+          onPointerDown={event=>pointerDown(event,selectedBlock,'rotate')} onPointerMove={pointerMove} onPointerUp={pointerUp}
+          onPointerCancel={()=>{dragging.current=null;setActiveGuides([])}}
+          onKeyDown={event=>{if(event.key==='ArrowLeft'||event.key==='ArrowRight'){event.preventDefault();onGestureStart?.();onGeometry?.(selectedBlock.id,rotateBy(selectedRect,event.key==='ArrowLeft'?-1:1,event.shiftKey))}}}><RotateCw size={13}/></button>}
         {selectedRect.locked&&<span className="f9-locked-tag">Bloqueado</span>}
         {!selectedRect.locked&&!selectedRect.rotation&&RESIZE_HANDLES.map(handle=><button key={handle.id} type="button"
           className={'f8-handle f8-handle-'+handle.id}
           aria-label={handle.label} title={handle.label}
           onPointerDown={event=>pointerDown(event,selectedBlock,handle.id)}
           onPointerMove={pointerMove} onPointerUp={pointerUp}
-          onPointerCancel={()=>{dragging.current=null}}
+          onPointerCancel={()=>{dragging.current=null;setActiveGuides([])}}
           onKeyDown={event=>keyDown(event,selectedBlock,handle.id)}/>)}
       </div>}
       {arranging&&groupBounds&&<div className="f9-group-frame" aria-label={selectedCount+' elementos selecionados'}
-        style={{left:groupBounds.x*100+'%',top:groupBounds.y*100+'%',width:groupBounds.w*100+'%',height:groupBounds.h*100+'%'}}/>}
+        style={{left:groupBounds.x*100+'%',top:groupBounds.y*100+'%',width:groupBounds.w*100+'%',height:groupBounds.h*100+'%'}}>
+        {editable&&selectedBlock&&!Object.values(members).some(r=>r.locked||r.rotation)&&RESIZE_HANDLES.filter(h=>['nw','ne','sw','se'].includes(h.id)).map(handle=><button key={handle.id} type="button"
+          className={'f8-handle f8-handle-'+handle.id} aria-label={'Grupo: '+handle.label}
+          onPointerDown={event=>pointerDown(event,selectedBlock,handle.id)} onPointerMove={pointerMove} onPointerUp={pointerUp}
+          onPointerCancel={()=>{dragging.current=null;setActiveGuides([])}} onKeyDown={event=>keyDown(event,selectedBlock,handle.id)}/>)}
+      </div>}
+      {arranging&&activeGuides.map(g=><div key={g.axis} className={'f10-smart-guide f10-guide-'+g.axis} aria-hidden="true" style={g.axis==='x'?{left:g.value*100+'%'}:{top:g.value*100+'%'}}/>)}
       {arranging&&guides?.vertical&&<div className="f7-guide f7-guide-v" aria-hidden="true"/>}
       {arranging&&guides?.horizontal&&<div className="f7-guide f7-guide-h" aria-hidden="true"/>}
     </div>
