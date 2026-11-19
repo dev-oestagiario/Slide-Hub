@@ -17,6 +17,8 @@ import type { CanvasSelection, LayerRequest } from '../editor/SlideBlockCanvas'
 import { LayerPanel } from '../editor/LayerPanel'
 import { useModalFocus } from '../../lib/useModalFocus'
 import { ElementFormatPanel } from '../editor/ElementFormatPanel'
+import { SlideLibrary } from '../editor/SlideLibrary'
+import type { SlideOperation } from '../editor/slideOperations'
 import { SlideInspector } from '../editor/SlideInspector'
 import type { BlockRect, EditorLayout, EditorSlide } from '../editor/layoutModel'
 import type { DraftStatus } from '../editor/useLessonEditor'
@@ -35,6 +37,7 @@ export type LessonWorkspaceProps = {
   editorReady: boolean
   editorLayout: EditorLayout
   editorSlides: EditorSlide[]
+  onSlideOperation:(page:number,operation:SlideOperation)=>number|null
   onChangeBlockSource:(id:string,value:string,mode:'edit'|'duplicate',rect?:BlockRect)=>boolean
   onUpdateGeometry: (id:string, rect:BlockRect)=>void
   onUpdateGeometries: (rects:RectSet)=>void
@@ -73,7 +76,7 @@ export type LessonWorkspaceProps = {
 
 export function LessonWorkspace({
   lesson, title, markdown, mode, canEdit, busy, dirty, saveStatus, autoBreak, editorReady,
-  editorLayout, editorSlides, onChangeBlockSource, onUpdateGeometry, onUpdateGeometries, onResetGeometry, onGeometryStart,
+  editorLayout, editorSlides, onSlideOperation, onChangeBlockSource, onUpdateGeometry, onUpdateGeometries, onResetGeometry, onGeometryStart,
   onUndoGeometry, onRedoGeometry, canUndoGeometry, canRedoGeometry, isDictating,
   theme, activeTemplate, slides, previewPage, noteIndex, noteText,
   onTitleChange, onMarkdownChange, onModeChange, onAutoBreakChange, onPreviewPageChange,
@@ -90,6 +93,7 @@ export function LessonWorkspace({
   const [multiSelect,setMultiSelect]=useState(false)
   const [layerRequest,setLayerRequest]=useState<LayerRequest|null>(null)
   const [layersOpen,setLayersOpen]=useState(false)
+  const [libraryOpen,setLibraryOpen]=useState(false)
   const [expanded,setExpanded]=useState(false)
   const previewRef=useRef<HTMLElement>(null)
   useModalFocus(previewRef,expanded)
@@ -104,7 +108,7 @@ export function LessonWorkspace({
   const [snap,setSnap]=useState(true)
   const [zoom,setZoom]=useState(100)
   const [mobilePane,setMobilePane]=useState<'write'|'preview'>('write')
-  useEffect(()=>{setArranging(false);setSelection(null);setLayerRequest(null);setExpanded(false);setLayersOpen(false);setMobilePane('write')},[lesson.id])
+  useEffect(()=>{setArranging(false);setSelection(null);setLayerRequest(null);setExpanded(false);setLayersOpen(false);setLibraryOpen(false);setMobilePane('write')},[lesson.id])
   useEffect(()=>{if(mode!=='edit'||!canEdit)setExpanded(false)},[mode,canEdit])
   useEffect(()=>{setSelection(null);setLayerRequest(null);setEditingBlockId(null)},[previewPage,lesson.id])
   useEffect(()=>{if(!arranging)setEditingBlockId(null)},[arranging])
@@ -117,6 +121,36 @@ export function LessonWorkspace({
   const selectedRect=selection&&(selectedBlock
     ?editorLayout.overrides[selection.id]??selection.rect:null)
 
+  function operate(operation:SlideOperation){
+    const next=onSlideOperation(page,operation)
+    if(next!==null){
+      setSelection(null);setLayerRequest(null);setEditingBlockId(null)
+      onPreviewPageChange(next)
+    }
+  }
+  useEffect(()=>{
+    if(!canEdit||mode!=='edit')return
+    const handle=(event:KeyboardEvent)=>{
+      const target=event.target instanceof HTMLElement?event.target:null
+      if(!target||!target.closest('.f1-editor-workspace')||target.closest('.f11-inline-edit'))return
+      const typing=target.closest('input,textarea,select,[contenteditable="true"]')
+      if(!(event.ctrlKey||event.metaKey)||event.altKey)return
+      const key=event.key.toLowerCase()
+      if(typing&&target!==editorRef.current&&target.getAttribute('aria-label')!=='Título da aula')return
+      if(key==='z'||key==='y'){
+        event.preventDefault()
+        if(key==='y'||event.shiftKey){if(canRedoGeometry)onRedoGeometry()}
+        else if(canUndoGeometry)onUndoGeometry()
+      }else if(!typing&&arranging&&key==='d'&&!editingBlockId){
+        if(event.shiftKey){event.preventDefault();operate({type:'duplicate'})}
+        else if(selectedBlock&&selectedRect&&!selectedRect.locked&&['paragraph','image'].includes(selectedBlock.kind)){
+          event.preventDefault();onChangeBlockSource(selectedBlock.id,'','duplicate',selectedRect)
+        }
+      }
+    }
+    window.addEventListener('keydown',handle)
+    return ()=>window.removeEventListener('keydown',handle)
+  })
   function insert(snippet: string) {
     if (!canEdit) return
     const element = editorRef.current
@@ -259,12 +293,13 @@ export function LessonWorkspace({
             onClick={()=>{if(arranging){setExpanded(false);setLayersOpen(false)}setArranging(value=>!value);setSelection(null);setLayerRequest(null)}}>
             <Move size={16}/> {arranging?'Concluir ajustes':'Organizar visualmente'}
           </button>
-          {arranging&&<>
+          <button type="button" aria-expanded={libraryOpen} onClick={()=>setLibraryOpen(v=>!v)}><LayoutTemplate size={16}/> Slides e elementos</button>
+          <>
             <button type="button" disabled={!canUndoGeometry} onClick={onUndoGeometry}
-              title="Desfazer último ajuste" aria-label="Desfazer posição"><Undo2 size={16}/></button>
+              title="Desfazer alteração (Ctrl+Z)" aria-label="Desfazer alteração"><Undo2 size={16}/></button>
             <button type="button" disabled={!canRedoGeometry} onClick={onRedoGeometry}
-              title="Refazer último ajuste" aria-label="Refazer posição"><Redo2 size={16}/></button>
-          </>}
+              title="Refazer alteração (Ctrl+Y)" aria-label="Refazer alteração"><Redo2 size={16}/></button>
+          </>
           {arranging&&<button type="button" className={'f7-snap-button '+(multiSelect?'active':'')} aria-pressed={multiSelect}
             onClick={()=>setMultiSelect(value=>!value)}>Seleção múltipla</button>}
           {arranging&&<button type="button" className={'f7-snap-button '+(snap?'active':'')}
@@ -286,7 +321,8 @@ export function LessonWorkspace({
             ?'Selecione elementos e arraste, redimensione ou ajuste abaixo'
             :'Organização automática ativa • ajustes visuais opcionais'}</span>
         </div>}
-        <div className={'f10-stage-body '+(layersOpen&&arranging?'f10-with-layers':'')}>
+        <div className={'f10-stage-body '+(layersOpen&&arranging?'f10-with-layers ':'')+(libraryOpen?'f12-with-library':'')}>
+        {libraryOpen&&<SlideLibrary slides={slides} page={page} canEdit={canEdit&&editorReady} onPick={onPreviewPageChange} onOperation={operate}/>}
         <div className="f1-preview-stage f7-preview-stage">
           <div className="f7-preview-scroller">
           <div className={[

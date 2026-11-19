@@ -1,6 +1,6 @@
 import { parseSlides } from '../../lib/slideParser.ts'
 import { paginateSlides } from './autoOrganizer.ts'
-import { extractSlideBlocks } from './layoutModel.ts'
+import { extractSlideBlocks, splitVisibleBlocks } from './layoutModel.ts'
 import type { EditorLayout,SlideBlock } from './layoutModel.ts'
 
 export const SHAPES=['rectangle','rounded','circle','triangle','diamond','line','arrow','check','star','info'] as const
@@ -65,7 +65,9 @@ export function changeSlide(source:string,layout:EditorLayout,page:number,autoBr
   const nextOriginal=parseSlides(markdown,autoBreak)
   if(nextOriginal.length!==assigned.length||nextOriginal.some((s,i)=>{
     const entry=assigned[i],expected=original[entry.original]
-    return fp(s)!==fp(entry.shape?{...expected,markdown:expected.markdown+'\n\n'+shapeMarkdown(entry.shape)}:expected)
+    if(!entry.shape)return fp(s)!==fp(expected)
+    return fp({...s,markdown:''})!==fp({...expected,markdown:''})||
+      JSON.stringify(splitVisibleBlocks(s.markdown))!==JSON.stringify([...splitVisibleBlocks(expected.markdown),{kind:'code',markdown:shapeMarkdown(entry.shape)}])
   }))return null
   const nextFlow=paginateSlides(nextOriginal)
   const nextBlocks=extractSlideBlocks(nextFlow)
