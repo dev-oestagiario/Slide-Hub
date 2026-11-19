@@ -40,3 +40,24 @@ test('F6: student has no access to private export controls',async({page})=>{
   await page.goto('/tests/e2e/presenter.html?student=1')
   await expect(page.getByRole('button',{name:'Exportar apresentação'})).toHaveCount(0)
 })
+
+
+test('F15: actual Chromium PDF contains one page per slide',async({page,isMobile})=>{
+ test.skip(isMobile,'PDF is verified by desktop Chromium')
+ await page.goto('/tests/e2e/presenter.html')
+ await page.getByRole('button',{name:'Exportar apresentação'}).click()
+ await expect(page.locator('.f6-page')).toHaveCount(3)
+ const pdf=await page.pdf({preferCSSPageSize:true,printBackground:true})
+ expect(pdf.subarray(0,5).toString()).toBe('%PDF-')
+ expect((pdf.toString('latin1').match(/\/Type\s*\/Page\b/g)||[]).length).toBe(3)
+})
+test('F15: clipping preflight requires explicit acknowledgment',async({page})=>{
+ await page.goto('/tests/e2e/presenter.html')
+ await page.getByRole('button',{name:'Exportar apresentação'}).click()
+ const block=page.locator('.f6-manual-block')
+ await block.evaluate(el=>{(el as HTMLElement).style.height='3%';(el as HTMLElement).style.fontSize='100px'})
+ await expect(page.getByText(/Possível corte de conteúdo/)).toBeVisible()
+ await expect(page.getByRole('button',{name:'Baixar HTML'})).toBeDisabled()
+ await page.getByRole('checkbox',{name:'Exportar mesmo com risco de corte'}).check()
+ await expect(page.getByRole('button',{name:'Baixar HTML'})).toBeEnabled()
+})
