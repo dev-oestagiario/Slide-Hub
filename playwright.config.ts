@@ -18,7 +18,8 @@ export default defineConfig({
   webServer:{
     command:'npm run dev -- --host 127.0.0.1 --port 4173 --strictPort',
     url:'http://127.0.0.1:4173/tests/e2e/presenter.html',
-    reuseExistingServer:!process.env.CI,
+    reuseExistingServer:false,
+    env:{VITE_SUPABASE_URL:'http://127.0.0.1:4173',VITE_SUPABASE_PUBLISHABLE_KEY:'qa-local-fixture-only'},
     timeout:120_000
   }
 })

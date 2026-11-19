@@ -22,3 +22,10 @@ Smoke equivalente executado diretamente contra a URL publicada (main `0550d281`)
 - Teste autenticado ampliado para verificar perfis teacher/student reais e distintos, fixture publicada única, leitura integral do proprietário, projeção sem marcador privado para aluno e ausência de acesso direto do aluno a lessons, lesson_blocks e speaker_notes. Nenhuma escrita de dados, credencial registrada ou captura automática.
 - Security Advisor: dois avisos, não erros: RPC SECURITY DEFINER exposta a authenticated (intencional; manter revisão de grants e predicados; não revogar sem substituir contrato de leitura), proteção contra senhas vazadas desabilitada (recurso Pro ou superior; avaliar configuração e custo, sem upgrade automático).
 - A auditoria de catálogo NÃO equivale a execução do teste com sessão real. Permanecem necessários os secrets e a fixture dedicados; não usar contas pessoais, nem alterar registros reais. Persistência F17.3 e homologação autenticada continuam pendentes.
+
+## F17.3 — Rascunhos e persistência
+
+- Regressão reproduzida: desfazer até a versão salva mantinha o rascunho antigo no localStorage. Antes da correção: 3/4 testes desktop passaram; o teste de limpeza falhou.
+- Limpa o cache quando a versão local coincide com a salva, sem descartar a intenção durante uma gravação em andamento. O teste de conflito preserva o texto e a revisão esperada.
+- Fixture E2E com endpoint Supabase fictício local: autosave, falha de rede/recuperação, conflito e desfazer. 8/8 testes Chrome (desktop/mobile); 96/96 unitários, build aprovado. Corrigido também o caminho fileURLToPath nos testes de skills para Windows.
+- CQP-KAINA-72, Node 24.20.0, Playwright do projeto. Nenhum dado de produção foi escrito. Testes reais autenticados e persistência real ainda dependem de contas e fixture QA autorizadas. Build emitiu aviso de chunks >500 kB.
