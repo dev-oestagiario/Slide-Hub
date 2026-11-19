@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, PointerEvent as ReactPointerEvent, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { AlertTriangle, RotateCw } from 'lucide-react'
+import { InlineBlockEdit } from './InlineBlockEdit'
 import { elementAppearance } from './elementAppearance'
 import { MarkdownView } from '../../components/MarkdownView'
 import { SlideAutoFit } from './SlideAutoFit'
@@ -19,6 +20,9 @@ export const selectionRects=(selection:CanvasSelection|null|undefined,layout:Edi
 export type LayerRequest={id:string;additive:boolean}
 type Props={
   onEditText?:(block:SlideBlock)=>void
+  editingBlockId?:string|null
+  onCommitText?:(id:string,value:string)=>boolean
+  onCancelText?:()=>void
   layerRequest?:LayerRequest|null
   slide:EditorSlide
   layout:EditorLayout
@@ -54,7 +58,7 @@ const labelFor=(block:SlideBlock)=>({
 
 export function SlideBlockCanvas({
   slide,layout,editable=false,arranging=false,snap=true,multiSelect=false,layerRequest,selection,onSelect,onBatchGeometry,
-  onGeometry,onGestureStart,onReset,onOverflow,onEditText
+  onGeometry,onGestureStart,onReset,onOverflow,onEditText,editingBlockId,onCommitText,onCancelText
 }:Props){
   const area=useRef<HTMLDivElement>(null)
   const dragging=useRef<Drag|null>(null)
@@ -63,6 +67,7 @@ export function SlideBlockCanvas({
   const [activeGuides,setActiveGuides]=useState<Guide[]>([])
   const hasOverrides=slide.blocks.some(block=>layout.overrides[block.id])
   const separate=arranging||hasOverrides
+  const editingBlock=arranging&&editable?slide.blocks.find(b=>b.id===editingBlockId&&!layout.overrides[b.id]?.locked):undefined
   const selectedBlock=slide.blocks.find(block=>block.id===selection?.id)
   const members=Object.fromEntries(Object.entries(selectionRects(selection,layout)).filter(([id])=>slide.blocks.some(b=>b.id===id))) as RectSet
   const selectedCount=Object.keys(members).length
@@ -186,7 +191,7 @@ export function SlideBlockCanvas({
   },[layerRequest])
 
   function pointerDown(event:ReactPointerEvent<HTMLElement>,block:SlideBlock,mode:'move'|'rotate'|ResizeHandle){
-    if(!editable||!arranging||event.button!==0)return
+    if(!editable||!arranging||editingBlock||event.button!==0)return
     if(mode==='move' && (event.target as HTMLElement).closest('button,a,input,textarea,select'))return
     event.preventDefault()
     event.stopPropagation()
@@ -253,7 +258,7 @@ export function SlideBlockCanvas({
     }
   }
   function keyDown(event:ReactKeyboardEvent<HTMLElement>,block:SlideBlock,mode:'move'|ResizeHandle){
-    if(!arranging||!editable)return
+    if(!arranging||!editable||editingBlock)return
     const steps:Record<string,[number,number]>={
       ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]
     }
@@ -314,7 +319,7 @@ export function SlideBlockCanvas({
             <MarkdownView markdown={block.markdown}/>
           </div>
         })}
-      {arranging&&editable&&selectedBlock&&selectedRect&&<div className="f8-selection-frame"
+      {arranging&&editable&&!editingBlock&&selectedBlock&&selectedRect&&<div className="f8-selection-frame"
         style={{left:selectedRect.x*100+'%',top:selectedRect.y*100+'%',
           width:selectedRect.w*100+'%',height:selectedRect.h*100+'%',
           transform:selectedRect.rotation?'rotate('+selectedRect.rotation+'deg)':undefined}}>
@@ -331,7 +336,7 @@ export function SlideBlockCanvas({
           onPointerCancel={()=>{dragging.current=null;setActiveGuides([])}}
           onKeyDown={event=>keyDown(event,selectedBlock,handle.id)}/>)}
       </div>}
-      {arranging&&groupBounds&&<div className="f9-group-frame" aria-label={selectedCount+' elementos selecionados'}
+      {!editingBlock&&arranging&&groupBounds&&<div className="f9-group-frame" aria-label={selectedCount+' elementos selecionados'}
         style={{left:groupBounds.x*100+'%',top:groupBounds.y*100+'%',width:groupBounds.w*100+'%',height:groupBounds.h*100+'%'}}>
         {editable&&selectedBlock&&!Object.values(members).some(r=>r.locked||r.rotation)&&RESIZE_HANDLES.filter(h=>['nw','ne','sw','se'].includes(h.id)).map(handle=><button key={handle.id} type="button"
           className={'f8-handle f8-handle-'+handle.id} aria-label={'Grupo: '+handle.label}
@@ -339,6 +344,8 @@ export function SlideBlockCanvas({
           onPointerCancel={()=>{dragging.current=null;setActiveGuides([])}} onKeyDown={event=>keyDown(event,selectedBlock,handle.id)}/>)}
       </div>}
       {arranging&&activeGuides.map(g=><div key={g.axis} className={'f10-smart-guide f10-guide-'+g.axis} aria-hidden="true" style={g.axis==='x'?{left:g.value*100+'%'}:{top:g.value*100+'%'}}/>)}
+      {editingBlock&&onCommitText&&onCancelText&&<InlineBlockEdit key={editingBlock.id} block={editingBlock}
+        onSave={value=>onCommitText(editingBlock.id,value)} onCancel={onCancelText}/>}
       {arranging&&guides?.vertical&&<div className="f7-guide f7-guide-v" aria-hidden="true"/>}
       {arranging&&guides?.horizontal&&<div className="f7-guide f7-guide-h" aria-hidden="true"/>}
     </div>

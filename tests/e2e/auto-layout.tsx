@@ -11,6 +11,8 @@ import { SlideBlockCanvas, selectionRects } from '../../src/features/editor/Slid
 import { MultiElementTools } from '../../src/features/editor/MultiElementTools'
 import { setBlockRects } from '../../src/features/editor/multiGeometry'
 import type { CanvasSelection } from '../../src/features/editor/SlideBlockCanvas'
+import { ElementFormatPanel } from '../../src/features/editor/ElementFormatPanel'
+import { editVisibleBlock } from '../../src/features/editor/sourceEdits'
 import { SlideInspector } from '../../src/features/editor/SlideInspector'
 import '../../src/styles.css'
 import '../../src/styles/f1.css'
@@ -30,6 +32,12 @@ function Demo(){
   const [multiSelect,setMultiSelect]=useState(false)
   const [layerRequest,setLayerRequest]=useState<LayerRequest|null>(null)
   const [selection,setSelection]=useState<CanvasSelection|null>(null)
+  const [editingBlockId,setEditingBlockId]=useState<string|null>(null)
+  const changeSource=(id:string,value:string,mode:'edit'|'duplicate',rect?:import('../../src/features/editor/layoutModel').BlockRect)=>{
+    const next=editVisibleBlock(markdown,layout,id,value,false,mode,rect)
+    if(!next)return false
+    setMarkdown(next.markdown);setLayout(next.layout);return true
+  }
   useEffect(()=>{setLayout(previous=>reconcileEditorLayout(slides,previous))},[slides])
   useEffect(()=>setSelection(null),[page])
   const chosen=slides[Math.min(page,slides.length-1)]
@@ -53,6 +61,8 @@ function Demo(){
               arranging={editing} editable={true} multiSelect={multiSelect}
               onBatchGeometry={updates=>setLayout(before=>setBlockRects(before,updates))}
               selection={selection} onSelect={setSelection} layerRequest={layerRequest}
+              editingBlockId={editingBlockId} onEditText={block=>setEditingBlockId(block.id)}
+              onCommitText={(id,value)=>changeSource(id,value,'edit')} onCancelText={()=>setEditingBlockId(null)}
               onGeometry={(id,rect)=>setLayout(before=>setBlockRect(before,id,rect))}
               onReset={id=>setLayout(before=>resetBlockRect(before,id))}/>}
           </div>
@@ -62,6 +72,9 @@ function Demo(){
     {editing&&slide&&<LayerPanel slide={slide} layout={layout} selected={selectionRects(selection,layout)} multiSelect={multiSelect}
       onPick={(id,additive)=>setLayerRequest({id,additive})} onLayer={(id,direction)=>setLayout(before=>setBlockRect(before,id,{...selectionRects(selection,before)[id],z:Math.max(0,Math.min(100,selectionRects(selection,before)[id].z+direction))}))}/>}
     {editing&&<MultiElementTools rects={selectionRects(selection,layout)} onChange={updates=>setLayout(before=>setBlockRects(before,updates))}/>}
+    {editing&&Object.keys(selectionRects(selection,layout)).length===1&&selectedBlock&&selectedRect&&!selectedRect.locked&&<ElementFormatPanel key={selectedBlock.id} block={selectedBlock} rect={selectedRect}
+      onEdit={()=>setEditingBlockId(selectedBlock.id)} onDuplicate={()=>changeSource(selectedBlock.id,'','duplicate',selectedRect)}
+      onChange={rect=>setLayout(before=>setBlockRect(before,selectedBlock.id,rect))}/>}
     {editing&&Object.keys(selectionRects(selection,layout)).length===1&&!selectedRect?.locked&&<SlideInspector block={selectedBlock} rect={selectedRect||undefined}
       onChange={rect=>selection&&setLayout(before=>setBlockRect(before,selection.id,rect))}
       onReset={()=>{if(selection){setLayout(before=>resetBlockRect(before,selection.id));setSelection(null)}}}

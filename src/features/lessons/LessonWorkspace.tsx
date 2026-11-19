@@ -16,6 +16,7 @@ import type { RectSet } from '../editor/multiGeometry'
 import type { CanvasSelection, LayerRequest } from '../editor/SlideBlockCanvas'
 import { LayerPanel } from '../editor/LayerPanel'
 import { useModalFocus } from '../../lib/useModalFocus'
+import { ElementFormatPanel } from '../editor/ElementFormatPanel'
 import { SlideInspector } from '../editor/SlideInspector'
 import type { BlockRect, EditorLayout, EditorSlide } from '../editor/layoutModel'
 import type { DraftStatus } from '../editor/useLessonEditor'
@@ -34,6 +35,7 @@ export type LessonWorkspaceProps = {
   editorReady: boolean
   editorLayout: EditorLayout
   editorSlides: EditorSlide[]
+  onChangeBlockSource:(id:string,value:string,mode:'edit'|'duplicate',rect?:BlockRect)=>boolean
   onUpdateGeometry: (id:string, rect:BlockRect)=>void
   onUpdateGeometries: (rects:RectSet)=>void
   onResetGeometry: (id:string)=>void
@@ -71,7 +73,7 @@ export type LessonWorkspaceProps = {
 
 export function LessonWorkspace({
   lesson, title, markdown, mode, canEdit, busy, dirty, saveStatus, autoBreak, editorReady,
-  editorLayout, editorSlides, onUpdateGeometry, onUpdateGeometries, onResetGeometry, onGeometryStart,
+  editorLayout, editorSlides, onChangeBlockSource, onUpdateGeometry, onUpdateGeometries, onResetGeometry, onGeometryStart,
   onUndoGeometry, onRedoGeometry, canUndoGeometry, canRedoGeometry, isDictating,
   theme, activeTemplate, slides, previewPage, noteIndex, noteText,
   onTitleChange, onMarkdownChange, onModeChange, onAutoBreakChange, onPreviewPageChange,
@@ -84,6 +86,7 @@ export function LessonWorkspace({
   const [uploading, setUploading] = useState(false)
   const [arranging,setArranging] = useState(false)
   const [selection,setSelection]=useState<CanvasSelection|null>(null)
+  const [editingBlockId,setEditingBlockId]=useState<string|null>(null)
   const [multiSelect,setMultiSelect]=useState(false)
   const [layerRequest,setLayerRequest]=useState<LayerRequest|null>(null)
   const [layersOpen,setLayersOpen]=useState(false)
@@ -103,7 +106,8 @@ export function LessonWorkspace({
   const [mobilePane,setMobilePane]=useState<'write'|'preview'>('write')
   useEffect(()=>{setArranging(false);setSelection(null);setLayerRequest(null);setExpanded(false);setLayersOpen(false);setMobilePane('write')},[lesson.id])
   useEffect(()=>{if(mode!=='edit'||!canEdit)setExpanded(false)},[mode,canEdit])
-  useEffect(()=>{setSelection(null);setLayerRequest(null)},[previewPage])
+  useEffect(()=>{setSelection(null);setLayerRequest(null);setEditingBlockId(null)},[previewPage,lesson.id])
+  useEffect(()=>{if(!arranging)setEditingBlockId(null)},[arranging])
   const page = Math.min(previewPage, Math.max(0, slides.length - 1))
   const slide = slides[page]
   const slideModel = editorSlides[page]
@@ -299,6 +303,8 @@ export function LessonWorkspace({
                 arranging={arranging} snap={snap} multiSelect={multiSelect}
                 onBatchGeometry={onUpdateGeometries}
                 selection={selection} onSelect={setSelection} layerRequest={layerRequest}
+                editingBlockId={editingBlockId} onEditText={block=>setEditingBlockId(block.id)}
+                onCommitText={(id,value)=>onChangeBlockSource(id,value,'edit')} onCancelText={()=>setEditingBlockId(null)}
                 onGeometry={onUpdateGeometry} onGestureStart={onGeometryStart}
                 onReset={onResetGeometry}/>}
             </div>
@@ -319,6 +325,10 @@ export function LessonWorkspace({
         {arranging&&canEdit&&<MultiElementTools rects={selectedRects} onChange={rects=>{
           onGeometryStart();onUpdateGeometries(rects)
         }}/>}
+        {arranging&&canEdit&&selectedBlock&&selectedRect&&!selectedRect.locked&&<ElementFormatPanel key={selectedBlock.id} block={selectedBlock} rect={selectedRect}
+          onEdit={()=>setEditingBlockId(selectedBlock.id)}
+          onDuplicate={()=>onChangeBlockSource(selectedBlock.id,'','duplicate',selectedRect)}
+          onChange={rect=>{onGeometryStart();onUpdateGeometry(selectedBlock.id,rect)}}/>}
         {arranging&&canEdit&&selectedCount===1&&!selectedRect?.locked&&<SlideInspector block={selectedBlock}
           rect={selectedRect||undefined}
           onChange={rect=>{

@@ -240,3 +240,22 @@
 .f11-styled.f11-image{padding:0!important;overflow:hidden!important}
 .f11-styled.f11-image p{width:100%;height:100%;margin:0!important}
 .f11-styled.f11-image img{display:block;width:100%!important;height:100%!important;max-height:none!important;max-width:100%!important;object-fit:var(--f11-image-fit,contain);object-position:var(--f11-image-position,50% 50%);margin:0!important}
+
+.f11-format-panel{background:#fff;border-top:1px solid #dbe7e0;padding:12px 14px;display:grid;gap:10px;color:#285e51;min-width:0}
+.f11-format-panel header,.f11-action-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.f11-format-panel header{justify-content:space-between;font-size:12px}
+.f11-format-panel button{display:inline-flex;align-items:center;gap:5px;padding:7px 10px;border:1px solid #dbe7e0;border-radius:7px;color:#24584d;background:#f5f9f7;font-size:11px}
+.f11-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(110px,100%),1fr));gap:8px}
+.f11-fields label{min-width:0;display:grid;gap:4px;font-size:10px;color:#496b61;font-weight:650}
+.f11-fields input,.f11-fields select{box-sizing:border-box;width:100%;min-width:0;padding:6px;border:1px solid #d2e3db;border-radius:6px;background:white;color:#24584d;font-size:12px}
+.f11-fields input[type=range]{padding:0;accent-color:#0b8d79}
+.f11-fields input[type=color]{height:32px;padding:3px}
+.f11-color-field{display:flex;align-items:end;gap:4px;min-width:0}.f11-color-field label{flex:1}
+.f11-inline-edit{position:absolute;inset:5%;z-index:150;display:flex;flex-direction:column;gap:5px;padding:clamp(7px,1.5cqw,14px);box-sizing:border-box;background:#fff;color:#24584d;border:2px solid #0b8d79;border-radius:8px;overflow:auto;touch-action:auto}
+.f11-inline-edit label{font-size:clamp(10px,2.5cqw,15px);font-weight:750}
+.f11-inline-edit textarea{flex:1;min-height:36px;width:100%;resize:none;background:#f6faf8;color:#153d34;font:inherit;font-size:clamp(12px,3cqw,18px);border:1px solid #bcd8ce;border-radius:5px;padding:5px;box-sizing:border-box}
+.f11-inline-edit>div{display:flex;justify-content:flex-end;gap:6px}
+.f11-inline-edit button{font-size:11px;min-height:28px;padding:5px 9px;background:#e8f6f0;color:#24584d;border:1px solid #cfe3da;border-radius:6px}
+.f11-inline-edit button:last-child{background:#0b8d79;color:#fff}
+.f11-inline-edit small{font-size:10px;color:#9c3e25}
+@media(max-width:520px){.f11-format-panel{padding:10px}.f11-format-panel button{min-height:36px}}
