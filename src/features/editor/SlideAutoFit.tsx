@@ -1,14 +1,15 @@
 import { useLayoutEffect, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import { MarkdownView } from '../../components/MarkdownView'
 import type { SlideLayout } from '../../lib/slideParser'
 
-type Props={markdown:string;layout:SlideLayout}
+type Props={markdown:string;layout:SlideLayout;children?:ReactNode}
 /**
  * Measures real rendered content (including asynchronous image loads) against
  * the actual 16:9 viewport. First pages are split semantically by autoOrganizer;
  * the remaining excess is shrunk to fit without changing source Markdown.
  */
-export function SlideAutoFit({markdown,layout}:Props){
+export function SlideAutoFit({markdown,layout,children}:Props){
   const outer=useRef<HTMLDivElement>(null)
   const content=useRef<HTMLDivElement>(null)
   const [tooDense,setTooDense]=useState(false)
@@ -55,7 +56,7 @@ export function SlideAutoFit({markdown,layout}:Props){
   return <div className="f7-autofit" ref={outer}
     aria-label={'Slide organizado automaticamente'+(percent<100?' em '+percent+'%':'')}>
     <div ref={content} className={'f7-autofit-content f7-layout-'+layout}>
-      <MarkdownView markdown={markdown}/>
+      {children??<MarkdownView markdown={markdown}/>}
     </div>
     {tooDense&&<span className="f7-autofit-warning" role="status">
       Conteúdo muito extenso: role aqui ou divida o bloco

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, PointerEvent as ReactPointerEvent, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { AlertTriangle, RotateCw } from 'lucide-react'
+import { revealOrder } from './motionModel'
 import { InlineBlockEdit } from './InlineBlockEdit'
 import { appearanceClasses, elementAppearance } from './elementAppearance'
 import { MarkdownView } from '../../components/MarkdownView'
@@ -19,6 +20,7 @@ export const selectionRects=(selection:CanvasSelection|null|undefined,layout:Edi
   selection?Object.fromEntries(Object.entries(selection.members??{[selection.id]:selection.rect}).map(([id,rect])=>[id,layout.overrides[id]??rect])):{}
 export type LayerRequest={id:string;additive:boolean}
 type Props={
+  motionStep?:number
   onEditText?:(block:SlideBlock)=>void
   editingBlockId?:string|null
   onCommitText?:(id:string,value:string)=>boolean
@@ -58,7 +60,7 @@ const labelFor=(block:SlideBlock)=>({
 
 export function SlideBlockCanvas({
   slide,layout,editable=false,arranging=false,snap=true,multiSelect=false,layerRequest,selection,onSelect,onBatchGeometry,
-  onGeometry,onGestureStart,onReset,onOverflow,onEditText,editingBlockId,onCommitText,onCancelText
+  onGeometry,onGestureStart,onReset,onOverflow,onEditText,editingBlockId,onCommitText,onCancelText,motionStep
 }:Props){
   const area=useRef<HTMLDivElement>(null)
   const dragging=useRef<Drag|null>(null)
@@ -67,6 +69,12 @@ export function SlideBlockCanvas({
   const [activeGuides,setActiveGuides]=useState<Guide[]>([])
   const hasOverrides=slide.blocks.some(block=>layout.overrides[block.id])
   const separate=arranging||hasOverrides
+  const order=motionStep===undefined?[]:revealOrder(slide.blocks,layout.motion)
+  const revealed=new Set(order.slice(0,motionStep??0))
+  const effectFor=(id:string)=>order.includes(id)?layout.motion?.elements[id]:undefined
+  const motionClass=(id:string)=>effectFor(id)?(revealed.has(id)?' f13-enter f13-enter-'+effectFor(id)!.effect:' f13-awaiting'):''
+  const motionStyle=(id:string)=>({'--f13-duration':(effectFor(id)?.duration??350)+'ms','--f13-opacity':(layout.overrides[id]?.style?.opacity??100)/100} as CSSProperties)
+  const hidden=(id:string)=>Boolean(effectFor(id)&&!revealed.has(id))
   const editingBlock=arranging&&editable?slide.blocks.find(b=>b.id===editingBlockId&&!layout.overrides[b.id]?.locked):undefined
   const selectedBlock=slide.blocks.find(block=>block.id===selection?.id)
   const members=Object.fromEntries(Object.entries(selectionRects(selection,layout)).filter(([id])=>slide.blocks.some(b=>b.id===id))) as RectSet
@@ -298,7 +306,11 @@ export function SlideBlockCanvas({
         if(arranging&&event.target===event.currentTarget)onSelect?.(null)
       }}>
       {!separate
-        ?<SlideAutoFit markdown={slide.slide.markdown} layout={slide.slide.layout}/>
+        ?<SlideAutoFit markdown={slide.slide.markdown} layout={slide.slide.layout}>
+          {order.length?slide.blocks.map(block=><div key={block.id} data-motion-block={block.id}
+            className={'f13-flow-block'+motionClass(block.id)} style={motionStyle(block.id)} aria-hidden={hidden(block.id)||undefined} inert={hidden(block.id)||undefined}>
+            <MarkdownView markdown={block.markdown}/></div>):undefined}
+        </SlideAutoFit>
         :slide.blocks.map(block=>{
           const rect=layout.overrides[block.id]
           const chosen=Boolean(members[block.id])
@@ -307,8 +319,8 @@ export function SlideBlockCanvas({
             width:rect.w*100+'%',height:rect.h*100+'%',zIndex:rect.z,...elementAppearance(rect),transform:rect.rotation?'rotate('+rect.rotation+'deg)':undefined
           }:undefined
           return <div key={block.id} data-slide-block={block.id}
-            className={'f4-block f7-editor-block '+(rect?'f4-pinned ':'')+(chosen?'f7-selected ':'')+(arranging&&rect?.locked?'f9-locked ':'')+' '+appearanceClasses(rect,block.kind)}
-            style={style} tabIndex={arranging?0:undefined}
+            className={'f4-block f7-editor-block '+(rect?'f4-pinned ':'')+(chosen?'f7-selected ':'')+(arranging&&rect?.locked?'f9-locked ':'')+' '+appearanceClasses(rect,block.kind)+motionClass(block.id)}
+            style={{...style,...(effectFor(block.id)?motionStyle(block.id):{})}} aria-hidden={hidden(block.id)||undefined} inert={hidden(block.id)||undefined} tabIndex={arranging?0:undefined}
             role={arranging?'button':undefined}
             aria-label={arranging?'Selecionar e mover '+labelFor(block):undefined}
             aria-pressed={arranging?chosen:undefined}
@@ -349,7 +361,7 @@ export function SlideBlockCanvas({
       {arranging&&guides?.vertical&&<div className="f7-guide f7-guide-v" aria-hidden="true"/>}
       {arranging&&guides?.horizontal&&<div className="f7-guide f7-guide-h" aria-hidden="true"/>}
     </div>
-    {separate&&(count>0||overflow>0)&&<div className="f7-canvas-warning" role="status">
+    {arranging&&separate&&(count>0||overflow>0)&&<div className="f7-canvas-warning" role="status">
       <AlertTriangle size={14}/>
       {count>0?count+' bloco(s) sobrepostos. ':''}
       {overflow>0?overflow+' bloco(s) com conteúdo maior que sua área. ':''}

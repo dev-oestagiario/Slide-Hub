@@ -12,6 +12,7 @@ import type { Slide } from '../lib/slideParser'
 import type { PresentationTemplateConfig } from '../features/templates/model'
 import { inferSlideKind, visualThemeForSlide } from '../features/templates/model'
 import { TemplateChrome } from '../features/templates/TemplateChrome'
+import { revealOrder } from '../features/editor/motionModel'
 import { SlideBlockCanvas } from '../features/editor/SlideBlockCanvas'
 import type { EditorSlide, EditorLayout } from '../features/editor/layoutModel'
 
@@ -40,6 +41,10 @@ export function Presentation({
   slides,title,theme,template,notes,editorLayout,editorSlides,canEdit,onClose
 }:PresentationProps) {
   const [index,setIndex]=useState(0)
+  const [reveal,setReveal]=useState({index:0,step:0})
+  const motionStep=reveal.index===index?reveal.step:0
+  const sequence=revealOrder(editorSlides?.[index]?.blocks??[],editorLayout?.motion)
+  const transition=editorLayout?.motion?.transitions[editorSlides?.[index]?.key??'']
   const [showSolution,setShowSolution]=useState(false)
   const [speakerMode,setSpeakerMode]=useState(false)
   const [showOutline,setShowOutline]=useState(false)
@@ -81,17 +86,17 @@ export function Presentation({
       const action=presentationKeyAction(event.key)
       if(!action)return
       event.preventDefault()
-      if(action==='next'){setIndex(n=>nextSlide(n,slides.length));setShowSolution(false)}
-      if(action==='previous'){setIndex(n=>previousSlide(n));setShowSolution(false)}
-      if(action==='first'){setIndex(firstSlide());setShowSolution(false)}
-      if(action==='last'){setIndex(lastSlide(slides.length));setShowSolution(false)}
+      if(action==='next')advance('next')
+      if(action==='previous')advance('previous')
+      if(action==='first')jumpTo(firstSlide())
+      if(action==='last')jumpTo(lastSlide(slides.length))
       if(action==='help')setShowHelp(open=>!open)
       if(action==='outline')setShowOutline(open=>!open)
       if(action==='fullscreen')toggleFullscreen()
     }
     window.addEventListener('keydown',onKeyDown)
     return ()=>window.removeEventListener('keydown',onKeyDown)
-  },[showHelp,showOutline,slides.length])
+  },[showHelp,showOutline,slides.length,index,motionStep,sequence.length])
 
   const slide=slides[index]??slides[0]
   if(!slide)return null
@@ -104,11 +109,14 @@ export function Presentation({
     ??notes.find(note=>!note.slide_key&&note.slide_index===index)
 
   function advance(direction:'previous'|'next'){
-    setIndex(n=>direction==='next'?nextSlide(n,slides.length):previousSlide(n))
-    setShowSolution(false)
+    if(direction==='next'&&motionStep<sequence.length){setReveal({index,step:motionStep+1});return}
+    if(direction==='previous'&&motionStep>0){setReveal({index,step:motionStep-1});return}
+    const target=direction==='next'?nextSlide(index,slides.length):previousSlide(index)
+    if(target!==index){setIndex(target);setReveal({index:target,step:0});setShowSolution(false)}
   }
   function jumpTo(destination:number){
-    setIndex(Math.min(lastSlide(slides.length),Math.max(0,destination)))
+    const target=Math.min(lastSlide(slides.length),Math.max(0,destination))
+    setIndex(target);setReveal({index:target,step:0})
     setShowSolution(false)
     setShowOutline(false)
     dialog.current?.focus()
@@ -149,7 +157,7 @@ export function Presentation({
     </header>
     {showHelp&&<aside className="f5-keyboard-help" id="f5-keyboard-help" aria-label="Atalhos disponíveis">
       <strong>Atalhos da apresentação</strong>
-      <p><kbd>→</kbd> <kbd>↓</kbd> <kbd>Espaço</kbd> Próximo slide
+      <p><kbd>→</kbd> <kbd>↓</kbd> <kbd>Espaço</kbd> Próximo elemento ou slide
         <span><kbd>←</kbd> <kbd>↑</kbd> Slide anterior</span></p>
       <p><kbd>Home</kbd> Início <span><kbd>End</kbd> Último slide</span></p>
       <p><kbd>O</kbd> Lista de slides <span><kbd>F</kbd> Tela cheia</span>
@@ -164,8 +172,8 @@ export function Presentation({
       </button>)}
     </nav>}
     <div className={'slide-layout f5-presenter-layout '+(speakerMode?'teacher-view':'')}>
-      <section className={[
-        'slide-body','layout-'+slide.layout,
+      <section key={index} className={[
+        'slide-body','layout-'+slide.layout,transition?'f13-transition f13-transition-'+transition:'',
         template?'f3-presentation-body':'',
         template?'f3-density-'+template.density:'',
         template?.branding.showHeader?'f3-with-header':'',
@@ -176,7 +184,7 @@ export function Presentation({
         {!template?.branding.showHeader&&<span className="eyebrow">SLIDEHUB / {String(index+1).padStart(2,'0')}</span>}
         <div className={'slide-text '+(manuallyArranged?'f4-manual-slide':'')}>
           {currentEditorSlide&&editorLayout
-            ?<SlideBlockCanvas slide={currentEditorSlide} layout={editorLayout}/>
+            ?<SlideBlockCanvas slide={currentEditorSlide} layout={editorLayout} motionStep={motionStep}/>
             :<MarkdownView markdown={slide.markdown}/>}
         </div>
         {canEdit&&slide.answer&&<div className="slide-answer">
@@ -197,9 +205,9 @@ export function Presentation({
     </div>
     <footer className="slide-controls f5-presenter-controls">
       <div>
-        <button onClick={()=>advance('previous')} disabled={index===0} aria-label="Slide anterior"><ChevronLeft/></button>
-        <span role="status" aria-live="polite" aria-atomic="true">{index+1} de {slides.length}</span>
-        <button onClick={()=>advance('next')} disabled={index===slides.length-1} aria-label="Próximo slide"><ChevronRight/></button>
+        <button onClick={()=>advance('previous')} disabled={index===0&&motionStep===0} aria-label="Slide anterior"><ChevronLeft/></button>
+        <span role="status" aria-live="polite" aria-atomic="true">{index+1} de {slides.length}{sequence.length>0&&<small className="f13-steps"> · Etapa {motionStep}/{sequence.length}</small>}</span>
+        <button onClick={()=>advance('next')} disabled={index===slides.length-1&&motionStep>=sequence.length} aria-label="Próximo slide" title={motionStep<sequence.length?'Revelar próximo elemento':'Próximo slide'}><ChevronRight/></button>
       </div>
       <div className="slide-progress" role="progressbar" aria-label="Progresso da apresentação"
         aria-valuemin={0} aria-valuemax={slides.length} aria-valuenow={index+1}>

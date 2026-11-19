@@ -6,6 +6,8 @@ import { paginateSlides } from './autoOrganizer'
 import { editVisibleBlock } from './sourceEdits'
 import { changeSlide } from './slideOperations'
 import type { SlideOperation } from './slideOperations'
+import { cleanMotion } from './motionModel'
+import type { MotionLayout } from './motionModel'
 import { setBlockRects } from './multiGeometry'
 import type { RectSet } from './multiGeometry'
 import type { Lesson } from '../courses/types'
@@ -157,6 +159,17 @@ export function useLessonEditor({lesson,canEdit,autoBreak,userId,onPersist,onNot
     setMarkdownState(next.markdown);setLayout(next.layout);setStatus('pending')
     return next.page
   }
+  function updateMotion(value:MotionLayout){
+    if(!canEdit||loadedFor!==lesson?.id||current.current.lessonId!==lesson?.id)return
+    const before=current.current
+    const {motion:ignored,...rest}=before.layout
+    const motion=cleanMotion(value,rest.blocks)
+    const next={...rest,...(motion?{motion}:{})}
+    if(layoutsEqual(before.layout,next))return
+    checkpoint()
+    current.current={...before,layout:next}
+    setLayout(next);setStatus('pending')
+  }
   const resetGeometry=useCallback((id:string)=>{
     if(current.current.layout.overrides[id]?.locked)return
     checkpoint()
@@ -245,7 +258,7 @@ export function useLessonEditor({lesson,canEdit,autoBreak,userId,onPersist,onNot
 
   return {
     title,markdown,layout,parsed,slideModel,originalSlideKeys,dirty,status,ready:loadedFor===lesson?.id,
-    setTitle,setMarkdown,changeBlockSource,slideOperation,updateGeometry,updateGeometries,resetGeometry,checkpoint,undo,redo,canUndo,canRedo,
+    setTitle,setMarkdown,changeBlockSource,slideOperation,updateMotion,updateGeometry,updateGeometries,resetGeometry,checkpoint,undo,redo,canUndo,canRedo,
     save:flush
   }
 }
