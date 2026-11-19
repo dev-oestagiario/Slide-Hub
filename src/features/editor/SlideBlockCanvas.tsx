@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, PointerEvent as ReactPointerEvent, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { AlertTriangle, RotateCw } from 'lucide-react'
+import { elementAppearance } from './elementAppearance'
 import { MarkdownView } from '../../components/MarkdownView'
 import { SlideAutoFit } from './SlideAutoFit'
 import { movingGuides, snapGeometry, resizeGeometry, RESIZE_HANDLES } from './geometryTools'
@@ -17,6 +18,7 @@ export const selectionRects=(selection:CanvasSelection|null|undefined,layout:Edi
   selection?Object.fromEntries(Object.entries(selection.members??{[selection.id]:selection.rect}).map(([id,rect])=>[id,layout.overrides[id]??rect])):{}
 export type LayerRequest={id:string;additive:boolean}
 type Props={
+  onEditText?:(block:SlideBlock)=>void
   layerRequest?:LayerRequest|null
   slide:EditorSlide
   layout:EditorLayout
@@ -52,7 +54,7 @@ const labelFor=(block:SlideBlock)=>({
 
 export function SlideBlockCanvas({
   slide,layout,editable=false,arranging=false,snap=true,multiSelect=false,layerRequest,selection,onSelect,onBatchGeometry,
-  onGeometry,onGestureStart,onReset,onOverflow
+  onGeometry,onGestureStart,onReset,onOverflow,onEditText
 }:Props){
   const area=useRef<HTMLDivElement>(null)
   const dragging=useRef<Drag|null>(null)
@@ -297,14 +299,15 @@ export function SlideBlockCanvas({
           const chosen=Boolean(members[block.id])
           const style:CSSProperties|undefined=rect?{
             position:'absolute',left:rect.x*100+'%',top:rect.y*100+'%',
-            width:rect.w*100+'%',height:rect.h*100+'%',zIndex:rect.z,transform:rect.rotation?'rotate('+rect.rotation+'deg)':undefined
+            width:rect.w*100+'%',height:rect.h*100+'%',zIndex:rect.z,...elementAppearance(rect),transform:rect.rotation?'rotate('+rect.rotation+'deg)':undefined
           }:undefined
           return <div key={block.id} data-slide-block={block.id}
-            className={'f4-block f7-editor-block '+(rect?'f4-pinned ':'')+(chosen?'f7-selected ':'')+(arranging&&rect?.locked?'f9-locked ':'')}
+            className={'f4-block f7-editor-block '+(rect?'f4-pinned ':'')+(chosen?'f7-selected ':'')+(arranging&&rect?.locked?'f9-locked ':'')+(rect?.style?' f11-styled ':'')+(rect?.style&&block.kind==='image'?' f11-image':'')}
             style={style} tabIndex={arranging?0:undefined}
             role={arranging?'button':undefined}
             aria-label={arranging?'Selecionar e mover '+labelFor(block):undefined}
             aria-pressed={arranging?chosen:undefined}
+            onDoubleClick={event=>{if(arranging&&editable&&!rect?.locked&&(block.kind==='heading'||block.kind==='paragraph')){event.preventDefault();onEditText?.(block)}}}
             onPointerDown={event=>pointerDown(event,block,'move')}
             onPointerMove={pointerMove} onPointerUp={pointerUp} onPointerCancel={()=>{dragging.current=null;setActiveGuides([])}}
             onKeyDown={event=>{if(event.target===event.currentTarget)keyDown(event,block,'move')}}>

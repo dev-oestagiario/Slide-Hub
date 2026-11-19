@@ -3,6 +3,7 @@ import type { Dispatch, SetStateAction } from 'react'
 import { supabase } from '../../lib/supabase'
 import { parseSlides } from '../../lib/slideParser'
 import { paginateSlides } from './autoOrganizer'
+import { editVisibleBlock } from './sourceEdits'
 import { setBlockRects } from './multiGeometry'
 import type { RectSet } from './multiGeometry'
 import type { Lesson } from '../courses/types'
@@ -115,6 +116,17 @@ export function useLessonEditor({lesson,canEdit,autoBreak,userId,onPersist,onNot
   const updateGeometries=useCallback((updates:RectSet)=>{
     setLayout(previous=>setBlockRects(previous,updates));setStatus('pending')
   },[])
+  const changeBlockSource=useCallback((id:string,value:string,mode:'edit'|'duplicate',rect?:BlockRect)=>{
+    if(!canEdit||loadedFor!==lesson?.id)return false
+    const snapshot=current.current
+    const result=editVisibleBlock(snapshot.markdown,snapshot.layout,id,value,autoBreak,mode,rect)
+    if(!result){onNotify('Não foi possível identificar este bloco com segurança. Edite o Markdown na área Escrever.');return false}
+    current.current={...snapshot,markdown:result.markdown,layout:result.layout}
+    setMarkdownState(result.markdown);setLayout(result.layout);setStatus('pending')
+    // Geometry-only history must not restore outdated block identities after a source change.
+    history.current=[];redoHistory.current=[];setHistoryNumber(v=>v+1)
+    return true
+  },[canEdit,loadedFor,lesson?.id,autoBreak,onNotify])
   const resetGeometry=useCallback((id:string)=>{
     if(current.current.layout.overrides[id]?.locked)return
     checkpoint()
@@ -198,7 +210,7 @@ export function useLessonEditor({lesson,canEdit,autoBreak,userId,onPersist,onNot
 
   return {
     title,markdown,layout,parsed,slideModel,originalSlideKeys,dirty,status,ready:loadedFor===lesson?.id,
-    setTitle,setMarkdown,updateGeometry,updateGeometries,resetGeometry,checkpoint,undo,redo,canUndo,canRedo,
+    setTitle,setMarkdown,changeBlockSource,updateGeometry,updateGeometries,resetGeometry,checkpoint,undo,redo,canUndo,canRedo,
     save:flush
   }
 }
