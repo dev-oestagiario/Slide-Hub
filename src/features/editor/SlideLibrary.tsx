@@ -1,5 +1,9 @@
 import { useState } from 'react'
 import { ChevronLeft,ChevronRight,CopyPlus,Shapes } from 'lucide-react'
+import { SlideMiniature } from './SlideMiniature'
+import type {EditorLayout,EditorSlide} from './layoutModel'
+import type {SlideTheme} from '../../lib/slideThemes'
+import type {PresentationTemplateConfig} from '../templates/model'
 import { SlideShape } from './SlideShape'
 import { SHAPES } from './slideOperations'
 import type { ShapeKind,SlideOperation } from './slideOperations'
@@ -12,21 +16,35 @@ function thumbnail(slide:Slide){
   const content=lines.slice(1,4).map(line=>line.replace(/[*_#]/g,'').slice(0,70))
   return {title,content}
 }
-export function SlideLibrary({slides,page,canEdit,onPick,onOperation}:{slides:Slide[];page:number;canEdit:boolean;onPick:(i:number)=>void;onOperation:(op:SlideOperation)=>void}){
+export function SlideLibrary({slides,page,canEdit,onPick,onOperation,models,layout,theme,template}:{slides:Slide[];page:number;canEdit:boolean;onPick:(i:number)=>void;onOperation:(op:SlideOperation)=>void;models?:EditorSlide[];layout?:EditorLayout;theme?:SlideTheme;template?:PresentationTemplateConfig|null}){
   const [shapes,setShapes]=useState(false)
+  const [dragging,setDragging]=useState<number|null>(null)
+  const [dropTarget,setDropTarget]=useState<number|null>(null)
   const source=(slides[page] as FlowSlide|undefined)?.originalIndex??page
   const final=(slides.at(-1) as FlowSlide|undefined)?.originalIndex??slides.length-1
   return <aside className="f12-library" aria-label="Miniaturas e elementos">
     <header><strong>Slides</strong><small>{slides.length} páginas</small></header>
     <nav className="f12-thumbs" aria-label="Miniaturas dos slides">
       {slides.map((s,i)=>{const preview=thumbnail(s)
-        return <button key={i} type="button" className={'f12-thumb '+(i===page?'selected':'')}
-          aria-label={'Selecionar slide '+(i+1)+': '+preview.title} aria-current={i===page?'page':undefined}
-          onClick={()=>onPick(i)}>
-          <span className={'f12-thumb-art '+(s.theme==='dark'?'dark':'')}>
-            <strong>{preview.title}</strong>{preview.content.map((line,j)=><span key={j}>{line}</span>)}
-          </span><small>{i+1}{(s as FlowSlide).continuation?' · Continuação':''}</small>
-        </button>
+        const full=Boolean(models?.[i]&&layout&&theme)
+        const sourceIndex=(s as FlowSlide).originalIndex??i
+        return <div key={models?.[i]?.key??i} className={'f13-thumb-wrap'+(i===dropTarget?' f13-drop-target':'')}
+          draggable={canEdit} onDragStart={event=>{
+            if(!canEdit)return
+            setDragging(i);event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',String(i))
+          }} onDragEnd={()=>{setDragging(null);setDropTarget(null)}}
+          onDragOver={event=>{if(dragging===null||sourceIndex===((slides[dragging] as FlowSlide)?.originalIndex??dragging))return
+            event.preventDefault();event.dataTransfer.dropEffect='move';setDropTarget(i)}}
+          onDrop={event=>{event.preventDefault();const from=dragging;setDragging(null);setDropTarget(null)
+            if(from!==null&&from!==i&&canEdit&&sourceIndex!==((slides[from] as FlowSlide)?.originalIndex??from))onOperation({type:'reorder',fromPage:from,toPage:i})
+          }}>
+          {full&&<SlideMiniature model={models![i]} layout={layout!} theme={theme!} template={template} index={i} total={slides.length}/>}
+          <button type="button" className={'f12-thumb '+(i===page?'selected':'')+(full?' f13-thumb-button':'')}
+            aria-label={'Selecionar slide '+(i+1)+': '+preview.title} aria-current={i===page?'page':undefined} onClick={()=>onPick(i)}>
+            {!full&&<span className={'f12-thumb-art '+(s.theme==='dark'?'dark':'')}><strong>{preview.title}</strong>{preview.content.map((line,j)=><span key={j}>{line}</span>)}</span>}
+            <small>{i+1}{(s as FlowSlide).continuation?' · Continuação':''}</small>
+          </button>
+        </div>
       })}
     </nav>
     {canEdit&&<>
@@ -39,7 +57,7 @@ export function SlideLibrary({slides,page,canEdit,onPick,onOperation}:{slides:Sl
       {shapes&&<div className="f12-shape-grid" role="group" aria-label="Formas disponíveis">
         {SHAPES.map(shape=><button type="button" key={shape} onClick={()=>onOperation({type:'shape',shape})} aria-label={'Inserir '+names[shape]}><SlideShape value={shape}/><span>{names[shape]}</span></button>)}
       </div>}
-      <small>As operações atuam na seção original, incluindo suas continuações automáticas.</small>
+      <small>Arraste uma miniatura para mudar a ordem no desktop. Use os botões no celular. As continuações acompanham a seção original.</small>
     </>}
   </aside>
 }

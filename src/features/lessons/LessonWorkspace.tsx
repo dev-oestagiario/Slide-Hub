@@ -17,6 +17,9 @@ import type { CanvasSelection, LayerRequest } from '../editor/SlideBlockCanvas'
 import { LayerPanel } from '../editor/LayerPanel'
 import { useModalFocus } from '../../lib/useModalFocus'
 import { ElementFormatPanel } from '../editor/ElementFormatPanel'
+import { MotionPanel } from '../editor/MotionPanel'
+import { revealOrder } from '../editor/motionModel'
+import type { MotionLayout } from '../editor/motionModel'
 import { SlideLibrary } from '../editor/SlideLibrary'
 import type { SlideOperation } from '../editor/slideOperations'
 import { SlideInspector } from '../editor/SlideInspector'
@@ -37,6 +40,7 @@ export type LessonWorkspaceProps = {
   editorReady: boolean
   editorLayout: EditorLayout
   editorSlides: EditorSlide[]
+  onMotionChange:(value:MotionLayout)=>void
   onSlideOperation:(page:number,operation:SlideOperation)=>number|null
   onChangeBlockSource:(id:string,value:string,mode:'edit'|'duplicate',rect?:BlockRect)=>boolean
   onUpdateGeometry: (id:string, rect:BlockRect)=>void
@@ -76,7 +80,7 @@ export type LessonWorkspaceProps = {
 
 export function LessonWorkspace({
   lesson, title, markdown, mode, canEdit, busy, dirty, saveStatus, autoBreak, editorReady,
-  editorLayout, editorSlides, onSlideOperation, onChangeBlockSource, onUpdateGeometry, onUpdateGeometries, onResetGeometry, onGeometryStart,
+  editorLayout, editorSlides, onMotionChange, onSlideOperation, onChangeBlockSource, onUpdateGeometry, onUpdateGeometries, onResetGeometry, onGeometryStart,
   onUndoGeometry, onRedoGeometry, canUndoGeometry, canRedoGeometry, isDictating,
   theme, activeTemplate, slides, previewPage, noteIndex, noteText,
   onTitleChange, onMarkdownChange, onModeChange, onAutoBreakChange, onPreviewPageChange,
@@ -94,6 +98,9 @@ export function LessonWorkspace({
   const [layerRequest,setLayerRequest]=useState<LayerRequest|null>(null)
   const [layersOpen,setLayersOpen]=useState(false)
   const [libraryOpen,setLibraryOpen]=useState(false)
+  const [motionPreview,setMotionPreview]=useState<number|undefined>()
+  const [previewNonce,setPreviewNonce]=useState(0)
+  useEffect(()=>setMotionPreview(undefined),[previewPage,lesson.id,arranging])
   const [expanded,setExpanded]=useState(false)
   const previewRef=useRef<HTMLElement>(null)
   useModalFocus(previewRef,expanded)
@@ -322,10 +329,11 @@ export function LessonWorkspace({
             :'Organização automática ativa • ajustes visuais opcionais'}</span>
         </div>}
         <div className={'f10-stage-body '+(layersOpen&&arranging?'f10-with-layers ':'')+(libraryOpen?'f12-with-library':'')}>
-        {libraryOpen&&<SlideLibrary slides={slides} page={page} canEdit={canEdit&&editorReady} onPick={onPreviewPageChange} onOperation={operate}/>}
+        {libraryOpen&&<SlideLibrary slides={slides} models={editorSlides} layout={editorLayout} theme={theme} template={activeTemplate} page={page} canEdit={canEdit&&editorReady} onPick={onPreviewPageChange} onOperation={operate}/>}
         <div className="f1-preview-stage f7-preview-stage">
           <div className="f7-preview-scroller">
-          <div className={[
+          <div key={previewNonce} className={[
+            motionPreview!==undefined&&slideModel&&editorLayout.motion?.transitions[slideModel.key]?'f13-transition f13-transition-'+editorLayout.motion.transitions[slideModel.key]:'',
             'mini-slide','f3-lesson-preview','f3-layout-'+slide.layout,
             activeTemplate?'f3-density-'+activeTemplate.density:'',
             activeTemplate?.branding.showHeader?'f3-with-header':'',
@@ -336,7 +344,7 @@ export function LessonWorkspace({
             <div className="f3-preview-content f4-preview-shell">
               {slideModel && <SlideBlockCanvas
                 slide={slideModel} layout={editorLayout} editable={canEdit}
-                arranging={arranging} snap={snap} multiSelect={multiSelect}
+                arranging={arranging&&motionPreview===undefined} motionStep={motionPreview} snap={snap} multiSelect={multiSelect}
                 onBatchGeometry={onUpdateGeometries}
                 selection={selection} onSelect={setSelection} layerRequest={layerRequest}
                 editingBlockId={editingBlockId} onEditText={block=>setEditingBlockId(block.id)}
@@ -358,14 +366,18 @@ export function LessonWorkspace({
             onGeometryStart();onUpdateGeometry(id,{...r,z:Math.max(0,Math.min(100,r.z+direction))})
           }}/>}
         </div>
-        {arranging&&canEdit&&<MultiElementTools rects={selectedRects} onChange={rects=>{
+        {arranging&&canEdit&&slideModel&&<MotionPanel slide={slideModel} motion={editorLayout.motion} block={selectedBlock} locked={Boolean(selectedRect?.locked)}
+          onChange={value=>{setMotionPreview(undefined);onMotionChange(value)}} step={motionPreview}
+          onPreview={()=>{setPreviewNonce(v=>v+1);setMotionPreview(0)}} onAdvance={()=>setMotionPreview(step=>Math.min((step??0)+1,revealOrder(slideModel.blocks,editorLayout.motion).length))}
+          onStop={()=>setMotionPreview(undefined)}/>}
+        {arranging&&canEdit&&motionPreview===undefined&&<MultiElementTools rects={selectedRects} onChange={rects=>{
           onGeometryStart();onUpdateGeometries(rects)
         }}/>}
-        {arranging&&canEdit&&selectedBlock&&selectedRect&&!selectedRect.locked&&<ElementFormatPanel key={selectedBlock.id} block={selectedBlock} rect={selectedRect}
+        {arranging&&canEdit&&motionPreview===undefined&&selectedBlock&&selectedRect&&!selectedRect.locked&&<ElementFormatPanel key={selectedBlock.id} block={selectedBlock} rect={selectedRect}
           onEdit={()=>setEditingBlockId(selectedBlock.id)}
           onDuplicate={()=>onChangeBlockSource(selectedBlock.id,'','duplicate',selectedRect)}
           onChange={rect=>{onGeometryStart();onUpdateGeometry(selectedBlock.id,rect)}}/>}
-        {arranging&&canEdit&&selectedCount===1&&!selectedRect?.locked&&<SlideInspector block={selectedBlock}
+        {arranging&&canEdit&&motionPreview===undefined&&selectedCount===1&&!selectedRect?.locked&&<SlideInspector block={selectedBlock}
           rect={selectedRect||undefined}
           onChange={rect=>{
             if(!selection)return
