@@ -130,3 +130,27 @@ returns setof jsonb language sql stable security definer set search_path='' as $
 $$;
 revoke all on function public.list_accessible_lessons() from public,anon,authenticated;
 grant execute on function public.list_accessible_lessons() to authenticated;
+
+-- Mutations require both ownership and a database-managed teacher/admin role.
+do $$
+declare p text;
+begin
+  foreach p in array array['lessons_insert','lessons_update','lessons_delete'] loop
+    execute pg_catalog.format('drop policy if exists %I on public.lessons',p);
+  end loop;
+end $$;
+create policy lessons_insert on public.lessons for insert to authenticated with check (
+  exists(select 1 from public.modules m join public.disciplines d on d.id=m.discipline_id
+    join public.profiles p on p.id=d.owner_id where m.id=module_id and d.owner_id=(select auth.uid()) and p.role in ('teacher','admin'))
+);
+create policy lessons_update on public.lessons for update to authenticated using (
+  exists(select 1 from public.modules m join public.disciplines d on d.id=m.discipline_id
+    join public.profiles p on p.id=d.owner_id where m.id=module_id and d.owner_id=(select auth.uid()) and p.role in ('teacher','admin'))
+) with check (
+  exists(select 1 from public.modules m join public.disciplines d on d.id=m.discipline_id
+    join public.profiles p on p.id=d.owner_id where m.id=module_id and d.owner_id=(select auth.uid()) and p.role in ('teacher','admin'))
+);
+create policy lessons_delete on public.lessons for delete to authenticated using (
+  exists(select 1 from public.modules m join public.disciplines d on d.id=m.discipline_id
+    join public.profiles p on p.id=d.owner_id where m.id=module_id and d.owner_id=(select auth.uid()) and p.role in ('teacher','admin'))
+);

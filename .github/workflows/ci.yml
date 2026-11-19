@@ -40,3 +40,25 @@ jobs:
             test-results/
             playwright-report/
           if-no-files-found: ignore
+
+  security-sql:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: slidehub_ci_only
+          POSTGRES_DB: slidehub_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d slidehub_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test migrations and authorization in disposable PostgreSQL
+        env:
+          PGPASSWORD: slidehub_ci_only
+        run: psql -h 127.0.0.1 -U postgres -d slidehub_ci -v ON_ERROR_STOP=1 -f tests/sql/bootstrap.sql
