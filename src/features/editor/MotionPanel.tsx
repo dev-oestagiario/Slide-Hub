@@ -14,7 +14,7 @@ export function MotionPanel({slide,motion,block,locked,onChange,onPreview,onAdva
  const element=(effect:Entrance|'',params?:{order?:number;duration?:number})=>{
    if(!block||locked)return
    const next={...current.elements}
-   if(effect)next[block.id]={effect,order:params?.order??config?.order??Math.max(0,...Object.values(next).map(x=>x.order))+1,duration:params?.duration??config?.duration??350}
+   if(effect)next[block.id]={effect,order:params?.order??config?.order??Math.min(999,Math.max(0,...slide.blocks.map(b=>next[b.id]?.order??0))+1),duration:params?.duration??config?.duration??350}
    else delete next[block.id]
    update({...current,elements:next})
  }

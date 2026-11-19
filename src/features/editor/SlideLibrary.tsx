@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef,useState } from 'react'
 import { ChevronLeft,ChevronRight,CopyPlus,Shapes } from 'lucide-react'
 import { SlideMiniature } from './SlideMiniature'
 import type {EditorLayout,EditorSlide} from './layoutModel'
@@ -18,7 +18,7 @@ function thumbnail(slide:Slide){
 }
 export function SlideLibrary({slides,page,canEdit,onPick,onOperation,models,layout,theme,template}:{slides:Slide[];page:number;canEdit:boolean;onPick:(i:number)=>void;onOperation:(op:SlideOperation)=>void;models?:EditorSlide[];layout?:EditorLayout;theme?:SlideTheme;template?:PresentationTemplateConfig|null}){
   const [shapes,setShapes]=useState(false)
-  const [dragging,setDragging]=useState<number|null>(null)
+  const dragging=useRef<number|null>(null)
   const [dropTarget,setDropTarget]=useState<number|null>(null)
   const source=(slides[page] as FlowSlide|undefined)?.originalIndex??page
   const final=(slides.at(-1) as FlowSlide|undefined)?.originalIndex??slides.length-1
@@ -31,11 +31,11 @@ export function SlideLibrary({slides,page,canEdit,onPick,onOperation,models,layo
         return <div key={models?.[i]?.key??i} className={'f13-thumb-wrap'+(i===dropTarget?' f13-drop-target':'')}
           draggable={canEdit} onDragStart={event=>{
             if(!canEdit)return
-            setDragging(i);event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',String(i))
-          }} onDragEnd={()=>{setDragging(null);setDropTarget(null)}}
-          onDragOver={event=>{if(dragging===null||sourceIndex===((slides[dragging] as FlowSlide)?.originalIndex??dragging))return
+            dragging.current=i;event.dataTransfer.effectAllowed='move';event.dataTransfer.setData('text/plain',String(i))
+          }} onDragEnd={()=>{dragging.current=null;setDropTarget(null)}}
+          onDragOver={event=>{if(dragging.current===null||sourceIndex===((slides[dragging.current] as FlowSlide)?.originalIndex??dragging.current))return
             event.preventDefault();event.dataTransfer.dropEffect='move';setDropTarget(i)}}
-          onDrop={event=>{event.preventDefault();const from=dragging;setDragging(null);setDropTarget(null)
+          onDrop={event=>{event.preventDefault();const from=dragging.current;dragging.current=null;setDropTarget(null)
             if(from!==null&&from!==i&&canEdit&&sourceIndex!==((slides[from] as FlowSlide)?.originalIndex??from))onOperation({type:'reorder',fromPage:from,toPage:i})
           }}>
           {full&&<SlideMiniature model={models![i]} layout={layout!} theme={theme!} template={template} index={i} total={slides.length}/>}

@@ -318,3 +318,5 @@
 .f13-sequence{padding:0 0 0 19px;margin:0;max-height:110px;overflow:auto;font-size:11px}
 @media(min-width:1000px){.f10-expanded .f12-with-library .f13-thumb-wrap{flex:0 0 auto;width:100%}}
 @media(max-width:520px){.f13-thumb-wrap{flex-basis:108px}.f13-motion-actions button{min-height:40px}}
+
+.f13-thumb-wrap:focus-within{outline:2px solid #0b8d79;outline-offset:1px}

@@ -136,7 +136,7 @@ export function LessonWorkspace({
     }
   }
   useEffect(()=>{
-    if(!canEdit||mode!=='edit')return
+    if(!canEdit||mode!=='edit'||motionPreview!==undefined)return
     const handle=(event:KeyboardEvent)=>{
       const target=event.target instanceof HTMLElement?event.target:null
       if(!target||!target.closest('.f1-editor-workspace')||target.closest('.f11-inline-edit'))return
@@ -358,7 +358,7 @@ export function LessonWorkspace({
           <div className="f1-preview-caption"><span>SLIDE {String(page+1).padStart(2,'0')}</span>
             <span>{'Organizado automaticamente · 16:9'}</span></div>
         </div>
-        {arranging&&canEdit&&layersOpen&&slideModel&&<LayerPanel slide={slideModel} layout={editorLayout} selected={selectedRects} multiSelect={multiSelect}
+        {arranging&&canEdit&&motionPreview===undefined&&layersOpen&&slideModel&&<LayerPanel slide={slideModel} layout={editorLayout} selected={selectedRects} multiSelect={multiSelect}
           onPick={(id,additive)=>setLayerRequest({id,additive})}
           onLayer={(id,direction)=>{
             const r=selectedRects[id]
