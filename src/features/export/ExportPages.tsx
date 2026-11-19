@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { elementAppearance } from '../editor/elementAppearance'
+import { appearanceClasses, elementAppearance } from '../editor/elementAppearance'
 import { slideBackgroundStyle } from '../../lib/slideThemes'
 import type { ExportBlock, ExportPage, ExportPlan } from './exportModel'
 
@@ -11,7 +11,7 @@ function FixedBlock({block}:{block:ExportBlock}){
     position:'absolute',left:(rect.x*100)+'%',top:(rect.y*100)+'%',
     width:(rect.w*100)+'%',height:(rect.h*100)+'%',zIndex:rect.z,...elementAppearance(rect),transform:rect.rotation?'rotate('+rect.rotation+'deg)':undefined
   }:undefined
-  return <div className={'f6-export-block '+(rect?'f6-manual-block':'')+(rect?.style?' f11-styled':'')+(rect?.style&&block.kind==='image'?' f11-image':'')} style={geometry}>
+  return <div className={'f6-export-block '+(rect?'f6-manual-block':'')+' '+appearanceClasses(rect,block.kind)} style={geometry}>
     <ReactMarkdown remarkPlugins={[remarkGfm]}>{block.markdown}</ReactMarkdown>
   </div>
 }

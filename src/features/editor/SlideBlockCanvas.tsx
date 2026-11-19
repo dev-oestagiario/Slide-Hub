@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { CSSProperties, PointerEvent as ReactPointerEvent, KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { AlertTriangle, RotateCw } from 'lucide-react'
 import { InlineBlockEdit } from './InlineBlockEdit'
-import { elementAppearance } from './elementAppearance'
+import { appearanceClasses, elementAppearance } from './elementAppearance'
 import { MarkdownView } from '../../components/MarkdownView'
 import { SlideAutoFit } from './SlideAutoFit'
 import { movingGuides, snapGeometry, resizeGeometry, RESIZE_HANDLES } from './geometryTools'
@@ -307,7 +307,7 @@ export function SlideBlockCanvas({
             width:rect.w*100+'%',height:rect.h*100+'%',zIndex:rect.z,...elementAppearance(rect),transform:rect.rotation?'rotate('+rect.rotation+'deg)':undefined
           }:undefined
           return <div key={block.id} data-slide-block={block.id}
-            className={'f4-block f7-editor-block '+(rect?'f4-pinned ':'')+(chosen?'f7-selected ':'')+(arranging&&rect?.locked?'f9-locked ':'')+(rect?.style?' f11-styled ':'')+(rect?.style&&block.kind==='image'?' f11-image':'')}
+            className={'f4-block f7-editor-block '+(rect?'f4-pinned ':'')+(chosen?'f7-selected ':'')+(arranging&&rect?.locked?'f9-locked ':'')+' '+appearanceClasses(rect,block.kind)}
             style={style} tabIndex={arranging?0:undefined}
             role={arranging?'button':undefined}
             aria-label={arranging?'Selecionar e mover '+labelFor(block):undefined}
