@@ -2,6 +2,7 @@
 -- Disposable database only; emulate the Supabase roles and auth.uid.
 create role anon nologin;
 create role authenticated nologin;
+create role service_role nologin;
 create schema auth;
 create table auth.users(id uuid primary key,raw_user_meta_data jsonb default '{}');
 create function auth.uid() returns uuid language sql stable as $$ select coalesce(nullif(current_setting('request.jwt.claim.sub',true),''),nullif(current_setting('request.jwt.claims',true),'')::jsonb->>'sub')::uuid $$;
@@ -18,3 +19,5 @@ create function storage.foldername(text) returns text[] language sql immutable a
 \ir ../../supabase/migrations/20261111_hybrid_slide_editor.sql
 \ir ../../supabase/migrations/20261119110000_private_lesson_projection.sql
 \ir private-lesson-projection.sql
+\ir ../../supabase/migrations/20261119140131_teacher_feedback.sql
+\ir teacher-feedback.sql
