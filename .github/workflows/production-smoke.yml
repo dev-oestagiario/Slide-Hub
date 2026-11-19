@@ -23,7 +23,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm install --no-audit --no-fund
+      - run: npm ci --no-audit --no-fund
       - run: npx playwright test --config playwright.production.config.ts public.spec.ts
   authenticated:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.authenticated
@@ -34,7 +34,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm install --no-audit --no-fund
+      - run: npm ci --no-audit --no-fund
       - name: Verify production authorization with dedicated QA accounts
         env:
           SLIDEHUB_QA_TEACHER_EMAIL: ${{ secrets.SLIDEHUB_QA_TEACHER_EMAIL }}

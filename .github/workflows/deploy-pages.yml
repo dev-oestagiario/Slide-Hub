@@ -24,7 +24,7 @@ jobs:
         with:
           node-version: '22'
       - name: Instalar dependências
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
       - name: Testar conversor Markdown
         run: npm test
       - name: Gerar site React
