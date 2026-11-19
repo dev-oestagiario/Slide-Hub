@@ -120,6 +120,8 @@ test('F8: arrastar a alça direita altera somente largura sem deslocar o bloco',
     await page.getByRole('spinbutton',{name,exact:true}).fill(value)
   }
   const handle=page.getByRole('button',{name:'Redimensionar borda direita'})
+  await handle.scrollIntoViewIfNeeded()
+  await expect(handle).toBeInViewport()
   const box=await handle.boundingBox()
   const canvas=await page.locator('.f7-canvas').boundingBox()
   expect(box&&canvas).toBeTruthy()
