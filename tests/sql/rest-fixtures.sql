@@ -18,6 +18,16 @@ insert into public.lessons(id,module_id,title,markdown,status,editor_layout) val
 insert into public.speaker_notes(lesson_id,slide_index,notes) values ('40000000-0000-0000-0000-000000000001',0,'SEGREDO_NOTA');
 
 
+-- F17.4: private records exist for both teachers, to avoid vacuous deny tests.
+insert into public.slide_templates(id,owner_id,name) values
+ ('50000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','Tema QA proprietário'),
+ ('50000000-0000-0000-0000-000000000003','10000000-0000-0000-0000-000000000003','Tema QA outro professor');
+insert into public.presentation_templates(id,owner_id,name) values
+ ('60000000-0000-0000-0000-000000000001','10000000-0000-0000-0000-000000000001','Template QA proprietário'),
+ ('60000000-0000-0000-0000-000000000003','10000000-0000-0000-0000-000000000003','Template QA outro professor');
+insert into public.lesson_blocks(lesson_id,position,kind,payload) values
+ ('40000000-0000-0000-0000-000000000001',0,'exercise','{"answer":"SEGREDO_BLOCO"}');
+
 commit;
 create role authenticator noinherit login password 'slidehub_ci_only';
 grant authenticated, anon to authenticator;

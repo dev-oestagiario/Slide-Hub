@@ -29,3 +29,8 @@ Smoke equivalente executado diretamente contra a URL publicada (main `0550d281`)
 - Limpa o cache quando a versão local coincide com a salva, sem descartar a intenção durante uma gravação em andamento. O teste de conflito preserva o texto e a revisão esperada.
 - Fixture E2E com endpoint Supabase fictício local: autosave, falha de rede/recuperação, conflito e desfazer. 8/8 testes Chrome (desktop/mobile); 96/96 unitários, build aprovado. Corrigido também o caminho fileURLToPath nos testes de skills para Windows.
 - CQP-KAINA-72, Node 24.20.0, Playwright do projeto. Nenhum dado de produção foi escrito. Testes reais autenticados e persistência real ainda dependem de contas e fixture QA autorizadas. Build emitiu aviso de chunks >500 kB.
+## F17.4 — Matriz de autorização
+
+A suíte PostgREST descartável passa a semear notas, blocos e dois tipos de template de dois professores, com casos positivos e negativos. Verifica leitura de perfil próprio, rejeição de promoção de aluno, visibilidade de disciplinas e módulos públicos/privados, isolamento dos templates, bloqueio de alteração/exclusão de registros alheios e vínculo de template apenas com a própria aula. As gravações ocorrem somente no banco descartável de CI. A cobertura não equivale ao login real no Supabase; não executar a suíte contra produção.
+
+Pré-requisito da homologação real: credenciais e aula sintética QA dedicadas; nenhuma conta ou conteúdo pessoal deve ser usado. Nenhuma migration nova nesta etapa.
