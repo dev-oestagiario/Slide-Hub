@@ -7,7 +7,23 @@ export type SlideBlock = {
   markdown: string
   slideIndex: number
 }
-export type BlockRect = { x:number; y:number; w:number; h:number; z:number; rotation?:number; locked?:true; group?:string }
+export type ElementStyle={
+  font?:'system'|'serif'|'mono';size?:number;color?:string;background?:string;
+  borderColor?:string;borderWidth?:number;radius?:number;opacity?:number;
+  imageFit?:'contain'|'cover';imageX?:number;imageY?:number
+}
+export const cleanElementStyle=(value:unknown):ElementStyle|undefined=>{
+  const r=value&&typeof value==='object'?value as Record<string,unknown>:{}
+  const result:ElementStyle={}
+  if(r.font==='system'||r.font==='serif'||r.font==='mono')result.font=r.font
+  for(const k of ['color','background','borderColor'] as const)
+    if(typeof r[k]==='string'&&/^#[0-9a-f]{6}$/i.test(r[k]))result[k]=r[k].toLowerCase()
+  for(const [key,min,max] of [['size',50,200],['borderWidth',0,12],['radius',0,48],['opacity',10,100],['imageX',0,100],['imageY',0,100]] as const)
+    if(typeof r[key]==='number'&&Number.isFinite(r[key]))result[key]=Math.round(Math.max(min,Math.min(max,r[key])))
+  if(r.imageFit==='contain'||r.imageFit==='cover')result.imageFit=r.imageFit
+  return Object.keys(result).length?result:undefined
+}
+export type BlockRect = { x:number; y:number; w:number; h:number; z:number; rotation?:number; locked?:true; group?:string; style?:ElementStyle }
 export type EditorLayout = { schemaVersion:1; blocks:SlideBlock[]; overrides:Record<string,BlockRect> }
 export type EditorSlide = { key:string; blocks:SlideBlock[]; slide:Slide }
 
@@ -30,9 +46,10 @@ export function normalizeRect(value:unknown):BlockRect|null{
   if(vals.some(v=>typeof v!=='number'||!Number.isFinite(v)))return null
   const w=clamp(r.w as number,.08,1)
   const h=clamp(r.h as number,.05,1)
+  const style=cleanElementStyle(r.style)
   const rotation=typeof r.rotation==='number'&&Number.isFinite(r.rotation)?((r.rotation%360)+360)%360:0
   return {x:clamp(r.x as number,0,1-w),y:clamp(r.y as number,0,1-h),w,h,z:Math.round(clamp(r.z as number,0,100)),
-    ...(rotation?{rotation}:{}),...(r.locked===true?{locked:true as const}:{}),
+    ...(style?{style}:{}),...(rotation?{rotation}:{}),...(r.locked===true?{locked:true as const}:{}),
     ...(typeof r.group==='string'&&/^[a-z0-9-]{8,80}$/i.test(r.group)?{group:r.group}:{})}
 }
 export function normalizeEditorLayout(raw:unknown):EditorLayout{
@@ -178,7 +195,7 @@ export function layoutsEqual(a:EditorLayout,b:EditorLayout):boolean{
   if(ak.length!==bk.length||ak.some((key,i)=>key!==bk[i]))return false
   return ak.every(key=>{
     const x=a.overrides[key],y=b.overrides[key]
-    return x.x===y.x&&x.y===y.y&&x.w===y.w&&x.h===y.h&&x.z===y.z&&x.rotation===y.rotation&&x.locked===y.locked&&x.group===y.group
+    return x.x===y.x&&x.y===y.y&&x.w===y.w&&x.h===y.h&&x.z===y.z&&x.rotation===y.rotation&&x.locked===y.locked&&x.group===y.group&&JSON.stringify(cleanElementStyle(x.style))===JSON.stringify(cleanElementStyle(y.style))
   })
 }
 export function overflowing(rect:BlockRect):boolean{return rect.x+rect.w>1.001||rect.y+rect.h>1.001}
