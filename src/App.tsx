@@ -33,6 +33,7 @@ export default function App(){
   const [user,setUser]=useState<{id:string;email?:string}|null>(null),[booting,setBooting]=useState(true),[authEmail,setAuthEmail]=useState(''),[authPass,setAuthPass]=useState(''),[signup,setSignup]=useState(false)
   const [profile,setProfile]=useState<Profile|null>(null),[disciplines,setDisciplines]=useState<Discipline[]>([]),[modules,setModules]=useState<Module[]>([]),[lessons,setLessons]=useState<Lesson[]>([]),[templates,setTemplates]=useState<SlideTemplate[]>([])
   const [disciplineId,setDisciplineId]=useState<string|null>(null),[moduleId,setModuleId]=useState<string|null>(null),[lessonId,setLessonId]=useState<string|null>(null)
+  const [loadedUser,setLoadedUser]=useState<string|null>(null)
   const [presentationTemplates,setPresentationTemplates]=useState<PresentationTemplateRecord[]>([])
   const [templateLibraryOpen,setTemplateLibraryOpen]=useState(false)
   const [mode,setMode]=useState<'edit'|'article'>('edit'),[presenting,setPresenting]=useState(false)
@@ -47,7 +48,8 @@ export default function App(){
   const [previewPage,setPreviewPage] = useState(0)
   const [dictating,setDictating] = useState(false)
   const recognition=useRef<{stop:()=>void}|null>(null)
-  const selectedDiscipline=disciplines.find(d=>d.id===disciplineId),selectedModule=modules.find(m=>m.id===moduleId),lesson=lessons.find(l=>l.id===lessonId)
+  const accountReady=Boolean(user&&loadedUser===user.id)
+  const selectedDiscipline=accountReady?disciplines.find(d=>d.id===disciplineId):undefined,selectedModule=accountReady?modules.find(m=>m.id===moduleId):undefined,lesson=accountReady?lessons.find(l=>l.id===lessonId):undefined
   const course=disciplines.find(d=>d.id===modules.find(m=>m.id===lesson?.module_id)?.discipline_id)??selectedDiscipline
   const canWrite=profile?.role==='teacher'||profile?.role==='admin',canEdit=Boolean(canWrite && course?.owner_id===user?.id)
   const editor=useLessonEditor({
@@ -71,13 +73,18 @@ export default function App(){
     const [p,d,m,l,t,pt]=await Promise.all([supabase.from('profiles').select('*').eq('id',user.id).maybeSingle(),supabase.from('disciplines').select('*').order('created_at',{ascending:false}),supabase.from('modules').select('*').order('position'),supabase.rpc('list_accessible_lessons'),supabase.from('slide_templates').select('*'),supabase.from('presentation_templates').select('*').eq('owner_id',user.id).order('updated_at',{ascending:false})])
     if(activeUser.current!==requestedUser)return
     const error=[p.error,d.error,m.error,l.error,t.error].filter(Boolean).map(x=>x?.message).join(' / ')
-    if(error)setMessage(error)
+    if(error)setMessage(l.error?'Não foi possível carregar as aulas pela API protegida. '+l.error.message:error)
     // Never fall back to raw lesson rows: the secure projection is required.
     if(pt.error)setMessage('Biblioteca de templates indisponível. Aplique a migração F2 no Supabase: '+pt.error.message)
     setProfile(p.data as Profile|null);setDisciplines((d.data||[]) as Discipline[]);setModules((m.data||[]) as Module[]);setLessons((l.data||[]) as Lesson[]);setTemplates((t.data||[]) as SlideTemplate[])
     setPresentationTemplates((pt.data||[]) as PresentationTemplateRecord[])
+    setLoadedUser(requestedUser)
   }
-  useEffect(()=>{if(!user){setProfile(null);setDisciplines([]);setModules([]);setLessons([]);setPresentationTemplates([]);setTemplateLibraryOpen(false);return}void refresh()},[user?.id])
+  useEffect(()=>{
+    setLoadedUser(null);setProfile(null);setDisciplines([]);setModules([]);setLessons([]);setTemplates([]);setPresentationTemplates([])
+    setDisciplineId(null);setModuleId(null);setLessonId(null);setTemplateLibraryOpen(false);setThemeStudioOpen(false);setPresenting(false);setExporting(false);setNotes([]);setNoteText('')
+    if(user)void refresh()
+  },[user?.id])
   useEffect(()=>{setMode('edit');setNoteIndex(0);setPreviewPage(0);setExporting(false);setPresenting(false);setNoteText('');recognition.current?.stop();recognition.current=null;setDictating(false)},[lesson?.id,user?.id])
   useEffect(()=>{const raw=lesson?.theme_config&&typeof lesson.theme_config==='object'&&Object.keys(lesson.theme_config).length?lesson.theme_config:template?.config;setThemeConfig(normalizeSlideTheme(raw))},[lesson?.id,lesson?.theme_config,template?.config])
   useEffect(()=>{setNotes([]);setNotesLoadedFor(null);if(!lessonId||!canEdit||!supabase)return;let active=true;supabase.from('speaker_notes').select('*').eq('lesson_id',lessonId).then(({data,error})=>{if(active&&!error){setNotes((data||[]) as Note[]);setNotesLoadedFor(lessonId)}else if(active&&error)setMessage('Não foi possível carregar as notas. Tente novamente ao reabrir a aula.')});return ()=>{active=false}},[lessonId,canEdit,user?.id])
@@ -272,7 +279,7 @@ export default function App(){
     setPresenting(false)
     if(document.fullscreenElement) void document.exitFullscreen().catch(()=>undefined)
   }
-  if(booting)return <div className="centered">Carregando SlideHub…</div>
+  if(booting||(supabase&&user&&!accountReady))return <div className="centered">Carregando SlideHub…</div>
   if(!supabase)return <div className="centered"><div className="auth-panel"><h1>Configuração necessária</h1><p>Preencha VITE_SUPABASE_URL e VITE_SUPABASE_PUBLISHABLE_KEY no arquivo .env.</p></div></div>
   if(!user)return <div className="centered"><div className="auth-panel"><span className="brand-icon"><GraduationCap/></span><h1>SlideHub</h1><p>Da aula escrita à apresentação.</p><form onSubmit={e=>void handleAuth(e,signup)}><label>E-mail<input type="email" required value={authEmail} onChange={e=>setAuthEmail(e.target.value)} /></label><label>Senha<input type="password" minLength={6} required value={authPass} onChange={e=>setAuthPass(e.target.value)}/></label><button className="button primary" disabled={busy}>{signup?'Criar conta':'Entrar'}</button><button className="button subtle" type="button" onClick={()=>setSignup(v=>!v)}>{signup?'Já tenho conta':'Criar conta'}</button></form>{message&&<p role="status">{message}</p>}</div></div>
   function showCreate(kind:'discipline'|'module'|'lesson'){
