@@ -68,10 +68,11 @@ export default function App(){
   async function refresh(){
     if(!supabase||!user)return
     const requestedUser=user.id
-    const [p,d,m,l,t,pt]=await Promise.all([supabase.from('profiles').select('*').eq('id',user.id).maybeSingle(),supabase.from('disciplines').select('*').order('created_at',{ascending:false}),supabase.from('modules').select('*').order('position'),supabase.from('lessons').select('*').order('position'),supabase.from('slide_templates').select('*'),supabase.from('presentation_templates').select('*').eq('owner_id',user.id).order('updated_at',{ascending:false})])
+    const [p,d,m,l,t,pt]=await Promise.all([supabase.from('profiles').select('*').eq('id',user.id).maybeSingle(),supabase.from('disciplines').select('*').order('created_at',{ascending:false}),supabase.from('modules').select('*').order('position'),supabase.rpc('list_accessible_lessons'),supabase.from('slide_templates').select('*'),supabase.from('presentation_templates').select('*').eq('owner_id',user.id).order('updated_at',{ascending:false})])
     if(activeUser.current!==requestedUser)return
     const error=[p.error,d.error,m.error,l.error,t.error].filter(Boolean).map(x=>x?.message).join(' / ')
     if(error)setMessage(error)
+    // Never fall back to raw lesson rows: the secure projection is required.
     if(pt.error)setMessage('Biblioteca de templates indisponível. Aplique a migração F2 no Supabase: '+pt.error.message)
     setProfile(p.data as Profile|null);setDisciplines((d.data||[]) as Discipline[]);setModules((m.data||[]) as Module[]);setLessons((l.data||[]) as Lesson[]);setTemplates((t.data||[]) as SlideTemplate[])
     setPresentationTemplates((pt.data||[]) as PresentationTemplateRecord[])
