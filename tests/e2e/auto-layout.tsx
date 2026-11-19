@@ -5,7 +5,9 @@ import { DEFAULT_SLIDE_THEME, slideBackgroundStyle } from '../../src/lib/slideTh
 import { paginateSlides } from '../../src/features/editor/autoOrganizer'
 import { editorSlides, emptyLayout, reconcileEditorLayout, resetBlockRect, setBlockRect } from '../../src/features/editor/layoutModel'
 import type { EditorLayout } from '../../src/features/editor/layoutModel'
-import { SlideBlockCanvas } from '../../src/features/editor/SlideBlockCanvas'
+import { SlideBlockCanvas, selectionRects } from '../../src/features/editor/SlideBlockCanvas'
+import { MultiElementTools } from '../../src/features/editor/MultiElementTools'
+import { setBlockRects } from '../../src/features/editor/multiGeometry'
 import type { CanvasSelection } from '../../src/features/editor/SlideBlockCanvas'
 import { SlideInspector } from '../../src/features/editor/SlideInspector'
 import '../../src/styles.css'
@@ -23,6 +25,7 @@ function Demo(){
   const [layout,setLayout]=useState<EditorLayout>(()=>reconcileEditorLayout(slides,emptyLayout()))
   const [page,setPage]=useState(0)
   const [editing,setEditing]=useState(false)
+  const [multiSelect,setMultiSelect]=useState(false)
   const [selection,setSelection]=useState<CanvasSelection|null>(null)
   useEffect(()=>{setLayout(previous=>reconcileEditorLayout(slides,previous))},[slides])
   useEffect(()=>setSelection(null),[page])
@@ -34,6 +37,7 @@ function Demo(){
     <header style={{display:'flex',gap:12,flexWrap:'wrap',alignItems:'center'}}>
       <strong>{slides.length} slides automáticos</strong>
       <button type="button" onClick={()=>setEditing(!editing)}>Organizar visualmente</button>
+      {editing&&<button type="button" aria-pressed={multiSelect} onClick={()=>setMultiSelect(v=>!v)}>Seleção múltipla</button>}
       <button type="button" onClick={()=>setPage(index=>Math.max(0,index-1))}>Slide anterior</button>
       <button type="button" onClick={()=>setPage(index=>Math.min(slides.length-1,index+1))}>Próximo slide</button>
       <span>{page+1} de {slides.length}</span>
@@ -43,7 +47,8 @@ function Demo(){
         <div className="mini-slide f3-lesson-preview" style={slideBackgroundStyle(DEFAULT_SLIDE_THEME)}>
           <div className="f3-preview-content f4-preview-shell">
             {slide&&<SlideBlockCanvas slide={slide} layout={layout}
-              arranging={editing} editable={true}
+              arranging={editing} editable={true} multiSelect={multiSelect}
+              onBatchGeometry={updates=>setLayout(before=>setBlockRects(before,updates))}
               selection={selection} onSelect={setSelection}
               onGeometry={(id,rect)=>setLayout(before=>setBlockRect(before,id,rect))}
               onReset={id=>setLayout(before=>resetBlockRect(before,id))}/>}
@@ -51,7 +56,8 @@ function Demo(){
         </div>
       </div>
     </div>
-    {editing&&<SlideInspector block={selectedBlock} rect={selectedRect||undefined}
+    {editing&&<MultiElementTools rects={selectionRects(selection,layout)} onChange={updates=>setLayout(before=>setBlockRects(before,updates))}/>}
+    {editing&&Object.keys(selectionRects(selection,layout)).length===1&&!selectedRect?.locked&&<SlideInspector block={selectedBlock} rect={selectedRect||undefined}
       onChange={rect=>selection&&setLayout(before=>setBlockRect(before,selection.id,rect))}
       onReset={()=>{if(selection){setLayout(before=>resetBlockRect(before,selection.id));setSelection(null)}}}
       onClear={()=>setSelection(null)}/>}

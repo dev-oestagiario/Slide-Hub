@@ -188,3 +188,17 @@
   .f8-handle{width:24px;height:24px}
   .f8-handle:after{width:10px;height:10px}
 }
+
+/* F9: grouped selection and element actions, outside the slide. */
+.f9-group-frame{position:absolute;box-sizing:border-box;border:2px dashed #0b8d79;z-index:110;pointer-events:none}
+.f7-canvas.f4-arranging .f7-editor-block.f9-locked{cursor:not-allowed;outline-style:dotted}
+.f9-locked-tag{position:absolute;top:0;right:0;background:#fff;color:#195f55;border:1px solid #0b8d79;font-size:10px;padding:3px 6px}
+.f9-tools{display:grid;gap:9px;min-width:0;padding:12px 14px;border-top:1px solid #e0eae5;background:#fff;color:#285e51}
+.f9-tools header{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:5px;font-size:12px}
+.f9-action-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.f9-action-row button{display:inline-flex;align-items:center;gap:6px;padding:8px 10px;min-height:36px;border:1px solid #d7e6df;background:#f5f9f7;color:#24584d;border-radius:8px;font-size:11px;font-weight:700}
+.f9-action-row button:disabled{opacity:.42;cursor:not-allowed}
+.f9-action-row button:focus-visible{outline:2px solid #0b8d79;outline-offset:2px}
+.f9-tools small,.f9-selection-hint{font-size:11px;color:#688378;line-height:1.4}
+.f9-selection-hint{padding:8px 14px;margin:0}
+@media(max-width:520px){.f9-action-row button{min-height:42px}.f9-tools{padding:10px}}

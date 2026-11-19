@@ -301,7 +301,7 @@ export default function App(){
             canEdit={canEdit} busy={busy} dirty={dirty} autoBreak={autoBreak}
             saveStatus={saveStatus} editorReady={editor.ready} activeTemplate={activePresentation}
             editorLayout={editor.layout} editorSlides={slideModels}
-            onUpdateGeometry={editor.updateGeometry} onResetGeometry={editor.resetGeometry}
+            onUpdateGeometry={editor.updateGeometry} onUpdateGeometries={editor.updateGeometries} onResetGeometry={editor.resetGeometry}
             onGeometryStart={editor.checkpoint} onUndoGeometry={editor.undo}
             onRedoGeometry={editor.redo} canUndoGeometry={editor.canUndo} canRedoGeometry={editor.canRedo}
             isDictating={dictating} theme={colors} slides={slides} previewPage={previewPage}

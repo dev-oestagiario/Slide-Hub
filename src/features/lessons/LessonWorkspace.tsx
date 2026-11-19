@@ -10,7 +10,9 @@ import type { Lesson } from '../courses/types'
 import type { PresentationTemplateConfig } from '../templates/model'
 import { inferSlideKind, visualThemeForSlide } from '../templates/model'
 import { TemplateChrome } from '../templates/TemplateChrome'
-import { SlideBlockCanvas } from '../editor/SlideBlockCanvas'
+import { SlideBlockCanvas, selectionRects } from '../editor/SlideBlockCanvas'
+import { MultiElementTools } from '../editor/MultiElementTools'
+import type { RectSet } from '../editor/multiGeometry'
 import type { CanvasSelection } from '../editor/SlideBlockCanvas'
 import { SlideInspector } from '../editor/SlideInspector'
 import type { BlockRect, EditorLayout, EditorSlide } from '../editor/layoutModel'
@@ -31,6 +33,7 @@ export type LessonWorkspaceProps = {
   editorLayout: EditorLayout
   editorSlides: EditorSlide[]
   onUpdateGeometry: (id:string, rect:BlockRect)=>void
+  onUpdateGeometries: (rects:RectSet)=>void
   onResetGeometry: (id:string)=>void
   onGeometryStart: ()=>void
   onUndoGeometry: ()=>void
@@ -66,7 +69,7 @@ export type LessonWorkspaceProps = {
 
 export function LessonWorkspace({
   lesson, title, markdown, mode, canEdit, busy, dirty, saveStatus, autoBreak, editorReady,
-  editorLayout, editorSlides, onUpdateGeometry, onResetGeometry, onGeometryStart,
+  editorLayout, editorSlides, onUpdateGeometry, onUpdateGeometries, onResetGeometry, onGeometryStart,
   onUndoGeometry, onRedoGeometry, canUndoGeometry, canRedoGeometry, isDictating,
   theme, activeTemplate, slides, previewPage, noteIndex, noteText,
   onTitleChange, onMarkdownChange, onModeChange, onAutoBreakChange, onPreviewPageChange,
@@ -79,6 +82,7 @@ export function LessonWorkspace({
   const [uploading, setUploading] = useState(false)
   const [arranging,setArranging] = useState(false)
   const [selection,setSelection]=useState<CanvasSelection|null>(null)
+  const [multiSelect,setMultiSelect]=useState(false)
   const [snap,setSnap]=useState(true)
   const [zoom,setZoom]=useState(100)
   const [mobilePane,setMobilePane]=useState<'write'|'preview'>('write')
@@ -87,7 +91,9 @@ export function LessonWorkspace({
   const page = Math.min(previewPage, Math.max(0, slides.length - 1))
   const slide = slides[page]
   const slideModel = editorSlides[page]
-  const selectedBlock=slideModel?.blocks.find(block=>block.id===selection?.id)
+  const selectedRects=Object.fromEntries(Object.entries(selectionRects(selection,editorLayout)).filter(([id])=>slideModel?.blocks.some(b=>b.id===id)))
+  const selectedCount=Object.keys(selectedRects).length
+  const selectedBlock=selectedCount===1?slideModel?.blocks.find(block=>block.id===selection?.id):undefined
   const selectedRect=selection&&(selectedBlock
     ?editorLayout.overrides[selection.id]??selection.rect:null)
 
@@ -239,6 +245,8 @@ export function LessonWorkspace({
             <button type="button" disabled={!canRedoGeometry} onClick={onRedoGeometry}
               title="Refazer último ajuste" aria-label="Refazer posição"><Redo2 size={16}/></button>
           </>}
+          {arranging&&<button type="button" className={'f7-snap-button '+(multiSelect?'active':'')} aria-pressed={multiSelect}
+            onClick={()=>setMultiSelect(value=>!value)}>Seleção múltipla</button>}
           {arranging&&<button type="button" className={'f7-snap-button '+(snap?'active':'')}
             aria-pressed={snap} onClick={()=>setSnap(value=>!value)} title="Encaixar na grade">
             <Magnet size={15}/> Grade {snap?'ativada':'livre'}
@@ -267,7 +275,8 @@ export function LessonWorkspace({
             <div className="f3-preview-content f4-preview-shell">
               {slideModel && <SlideBlockCanvas
                 slide={slideModel} layout={editorLayout} editable={canEdit}
-                arranging={arranging} snap={snap}
+                arranging={arranging} snap={snap} multiSelect={multiSelect}
+                onBatchGeometry={onUpdateGeometries}
                 selection={selection} onSelect={setSelection}
                 onGeometry={onUpdateGeometry} onGestureStart={onGeometryStart}
                 onReset={onResetGeometry}/>}
@@ -278,7 +287,10 @@ export function LessonWorkspace({
           <div className="f1-preview-caption"><span>SLIDE {String(page+1).padStart(2,'0')}</span>
             <span>{'Organizado automaticamente · 16:9'}</span></div>
         </div>
-        {arranging&&canEdit&&<SlideInspector block={selectedBlock}
+        {arranging&&canEdit&&<MultiElementTools rects={selectedRects} onChange={rects=>{
+          onGeometryStart();onUpdateGeometries(rects)
+        }}/>}
+        {arranging&&canEdit&&selectedCount===1&&!selectedRect?.locked&&<SlideInspector block={selectedBlock}
           rect={selectedRect||undefined}
           onChange={rect=>{
             if(!selection)return

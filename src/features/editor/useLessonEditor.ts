@@ -106,6 +106,7 @@ export function useLessonEditor({lesson,canEdit,autoBreak,userId,onPersist,onNot
   },[])
   const updateGeometry=useCallback((id:string,rect:BlockRect)=>{
     setLayout(previous=>{
+      if(previous.overrides[id]?.locked)return previous
       const next=setBlockRect(previous,id,rect)
       return layoutsEqual(previous,next)?previous:next
     })
