@@ -178,3 +178,61 @@ test('F9: seleção múltipla, grupo, bloqueio e alinhamento preservam texto',as
   await expect(title).not.toHaveAttribute('style',/rotate\(/)
   expect(await page.getByRole('textbox',{name:'Texto da aula'}).inputValue()).toBe(text)
 })
+
+
+test('F10: camada sobreposta pode ser selecionada e elevada pelo painel',async({page})=>{
+  await page.goto('/tests/e2e/auto-layout.html')
+  await page.getByRole('textbox',{name:'Texto da aula'}).fill('# Título\n\nTexto curto.')
+  await page.getByRole('button',{name:'Organizar visualmente'}).click()
+  const panel=page.getByRole('complementary',{name:'Camadas do slide'})
+  const title=page.getByRole('button',{name:'Selecionar e mover Título'}).first()
+  const para=page.getByRole('button',{name:'Selecionar e mover Parágrafo'}).first()
+  await panel.getByRole('button',{name:'Selecionar camada: Título',exact:true}).click()
+  await expect(title).toHaveClass(/f7-selected/)
+  for(const [name,value] of [['Posição X','20'],['Posição Y','20'],['Largura','40'],['Altura','25']]){
+    await page.getByRole('spinbutton',{name,exact:true}).fill(value)
+  }
+  await panel.getByRole('button',{name:'Selecionar camada: Texto curto.',exact:true}).click()
+  for(const [name,value] of [['Posição X','20'],['Posição Y','20'],['Largura','40'],['Altura','25']]){
+    await page.getByRole('spinbutton',{name,exact:true}).fill(value)
+  }
+  await expect(para).toHaveClass(/f7-selected/)
+  await panel.getByRole('button',{name:'Selecionar camada: Título',exact:true}).click()
+  await expect(title).toHaveClass(/f7-selected/)
+  await panel.getByRole('button',{name:'Subir camada'}).click()
+  await expect.poll(()=>title.evaluate(el=>Number((el as HTMLElement).style.zIndex))).toBeGreaterThan(await para.evaluate(el=>Number((el as HTMLElement).style.zIndex)))
+})
+
+test('F10: alças coletivas escalam elementos e preservam distâncias proporcionais',async({page})=>{
+  await page.goto('/tests/e2e/auto-layout.html')
+  await page.getByRole('textbox',{name:'Texto da aula'}).fill('# Título\n\nTexto curto.')
+  await page.getByRole('button',{name:'Organizar visualmente'}).click()
+  const panel=page.getByRole('complementary',{name:'Camadas do slide'})
+  for(const [block,coords] of [['Título',['10','10','20','15']],['Texto curto.',['40','35','20','15']]] as const){
+    await panel.getByRole('button',{name:'Selecionar camada: '+block,exact:true}).click()
+    for(const [name,index] of [['Posição X',0],['Posição Y',1],['Largura',2],['Altura',3]] as const){
+      await page.getByRole('spinbutton',{name,exact:true}).fill(coords[index])
+    }
+  }
+  await page.getByRole('button',{name:'Seleção múltipla'}).click()
+  await panel.getByRole('button',{name:'Selecionar camada: Título',exact:true}).click()
+  await expect(page.locator('.f9-group-frame .f8-handle')).toHaveCount(4)
+  const handle=page.getByRole('button',{name:'Grupo: Redimensionar canto inferior direito'})
+  await handle.focus()
+  await page.keyboard.press('ArrowRight')
+  const sizes=await page.locator('.f7-editor-block.f7-selected').evaluateAll(nodes=>nodes.map(n=>parseFloat((n as HTMLElement).style.width)))
+  expect(sizes.every(value=>value>20)).toBe(true)
+  expect(Math.abs(sizes[0]-sizes[1])).toBeLessThan(.1)
+})
+
+test('F10: controle de rotação oferece ajuste livre por teclado',async({page})=>{
+  await page.goto('/tests/e2e/auto-layout.html')
+  await page.getByRole('textbox',{name:'Texto da aula'}).fill('# Título\n\nTexto curto.')
+  await page.getByRole('button',{name:'Organizar visualmente'}).click()
+  await page.getByRole('button',{name:'Selecionar camada: Título',exact:true}).click()
+  const handle=page.getByRole('button',{name:'Girar livremente'})
+  await handle.focus()
+  for(let i=0;i<7;i++)await page.keyboard.press('ArrowRight')
+  const title=page.getByRole('button',{name:'Selecionar e mover Título'}).first()
+  await expect(title).toHaveAttribute('style',/rotate\(7deg\)/)
+})
