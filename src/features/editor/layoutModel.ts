@@ -1,4 +1,6 @@
 import type { Slide } from '../../lib/slideParser.ts'
+import { cleanMotion, motionEqual } from './motionModel.ts'
+import type { MotionLayout } from './motionModel.ts'
 
 export type BlockKind = 'heading' | 'paragraph' | 'list' | 'image' | 'quote' | 'table' | 'code'
 export type SlideBlock = {
@@ -24,7 +26,7 @@ export const cleanElementStyle=(value:unknown):ElementStyle|undefined=>{
   return Object.keys(result).length?result:undefined
 }
 export type BlockRect = { x:number; y:number; w:number; h:number; z:number; rotation?:number; locked?:true; group?:string; style?:ElementStyle }
-export type EditorLayout = { schemaVersion:1; blocks:SlideBlock[]; overrides:Record<string,BlockRect> }
+export type EditorLayout = { schemaVersion:1; blocks:SlideBlock[]; overrides:Record<string,BlockRect>; motion?:MotionLayout }
 export type EditorSlide = { key:string; blocks:SlideBlock[]; slide:Slide }
 
 export const emptyLayout=():EditorLayout=>({schemaVersion:1,blocks:[],overrides:{}})
@@ -70,7 +72,8 @@ export function normalizeEditorLayout(raw:unknown):EditorLayout{
     const rect=normalizeRect(value)
     if(rect)overrides[key]=rect
   }
-  return {schemaVersion:1,blocks,overrides}
+  const motion=cleanMotion(source.motion,blocks)
+  return {schemaVersion:1,blocks,overrides,...(motion?{motion}:{})}
 }
 /** Structural content only. Never includes the private :::answer content removed by parseSlides. */
 export function splitVisibleBlocks(markdown:string):Array<{kind:BlockKind;markdown:string}> {
@@ -160,7 +163,8 @@ export function reconcileEditorLayout(
   })
   const overrides:Record<string,BlockRect>={}
   for(const block of blocks)if(previous.overrides[block.id])overrides[block.id]=previous.overrides[block.id]
-  return {schemaVersion:1,blocks,overrides}
+  const motion=cleanMotion(previous.motion,blocks)
+  return {schemaVersion:1,blocks,overrides,...(motion?{motion}:{})}
 }
 export function editorSlides(slides:readonly Slide[],layout:EditorLayout):EditorSlide[]{
   const byIndex=new Map<number,SlideBlock[]>()
@@ -186,7 +190,7 @@ export function resetBlockRect(layout:EditorLayout,id:string):EditorLayout{
   return {...layout,overrides}
 }
 export function layoutsEqual(a:EditorLayout,b:EditorLayout):boolean{
-  if(a.blocks.length!==b.blocks.length)return false
+  if(!motionEqual(a.motion,b.motion)||a.blocks.length!==b.blocks.length)return false
   for(let i=0;i<a.blocks.length;i++){
     const x=a.blocks[i],y=b.blocks[i]
     if(x.id!==y.id||x.kind!==y.kind||x.markdown!==y.markdown||x.slideIndex!==y.slideIndex)return false

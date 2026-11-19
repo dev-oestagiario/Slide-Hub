@@ -1,6 +1,7 @@
 import { parseSlides } from '../../lib/slideParser.ts'
 import { paginateSlides } from './autoOrganizer.ts'
 import { extractSlideBlocks, setBlockRect, splitVisibleBlocks } from './layoutModel.ts'
+import {copyMotion} from './motionModel.ts'
 import type { BlockRect, EditorLayout } from './layoutModel.ts'
 export type SourceEdit={markdown:string;layout:EditorLayout;id:string}
 export const editableText=(kind:string)=>kind==='heading'||kind==='paragraph'
@@ -53,6 +54,7 @@ export function editVisibleBlock(source:string,layout:EditorLayout,id:string,val
     seed.splice(index+1,0,{...block,id:target})
   }
   const next:EditorLayout={...layout,blocks:nextBlocks.map((b,i)=>({...b,id:seed[i].id})),overrides:{...layout.overrides}}
+  if(mode==='duplicate'&&layout.motion)next.motion=copyMotion(layout.motion,id,target)
   // Assign IDs by validated sequence, not similarity, to retain original geometry.
   if(mode==='duplicate'&&(rect||layout.overrides[id])){
     const original=rect??layout.overrides[id]
