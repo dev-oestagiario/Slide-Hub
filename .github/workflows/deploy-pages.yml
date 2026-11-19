@@ -16,6 +16,7 @@ concurrency:
 
 jobs:
   build:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,6 +32,8 @@ jobs:
         run: npm run build
       - name: Validar caminho base do GitHub Pages
         run: grep -q '/Slide-Hub/assets/' dist/index.html
+      - name: Identificar revisão do artefato
+        run: node scripts/release-manifest.mjs
       - name: Publicar artefato estático
         uses: actions/upload-pages-artifact@v3
         with:

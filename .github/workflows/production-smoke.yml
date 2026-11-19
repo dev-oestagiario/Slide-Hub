@@ -24,7 +24,10 @@ jobs:
         with:
           node-version: '22'
       - run: npm ci --no-audit --no-fund
-      - run: npx playwright test --config playwright.production.config.ts public.spec.ts
+      - name: Smoke público e verificação pós-deploy
+        env:
+          EXPECTED_RELEASE_SHA: ${{ github.event.workflow_run.head_sha || '' }}
+        run: npx playwright test --config playwright.production.config.ts public.spec.ts
   authenticated:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' && inputs.authenticated
     environment: slidehub-qa

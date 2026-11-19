@@ -17,14 +17,14 @@ Aplicação educacional React + TypeScript + Vite + Tailwind CSS + Supabase.
 
 ## Executar
 
-Requisitos: Node.js 22+ e projeto Supabase configurado.
+Requisitos: Node.js 22.12+ e projeto Supabase configurado.
 
-1. Instale com \`npm install\`.
+1. Instale com \`npm ci\`.
 2. Copie \`.env.example\` para \`.env\` e preencha \`VITE_SUPABASE_PUBLISHABLE_KEY\` com a chave **publicável** do projeto Dev.
 3. Execute \`npm run dev\`.
 4. Abra o endereço mostrado pelo Vite.
 
-O banco Supabase Dev já recebeu as tabelas. Para outro projeto, aplique a migration em \`supabase/migrations/20261110_educational_studio.sql\`.
+O banco Supabase Dev já recebeu as tabelas. Para outro projeto, aplique todas as migrations de supabase/migrations em ordem cronológica, começando por \`supabase/migrations/20261110_educational_studio.sql\`.
 
 O cadastro cria perfis de aluno. A função de professor deve ser atribuída por um administrador no SQL Editor, **nunca pelo formulário do navegador**:
 
@@ -46,7 +46,7 @@ Substitua pelo e-mail do usuário autorizado. Não exponha a chave \`service_rol
 | \`<!-- slide: layout=split -->\` | Duas colunas |
 | \`:::exercise\` ... \`:::\` | Questão |
 | \`:::answer\` ... \`:::\` | Gabarito privado até clicar para revelar |
-| Bloco Markdown \`mermaid\` | Reservado para diagramas UML |
+| Bloco Markdown \`mermaid\` | Renderiza diagramas Mermaid |
 
 As anotações de Markdown são comentários e não são executadas como HTML. O modo apostila lê o Markdown diretamente.
 
@@ -73,7 +73,7 @@ npm run build
 
 CI em \`.github/workflows/ci.yml\`.
 
-**Limitações conhecidas:** ainda não existe exportação PPTX, extração visual de tema PPTX, modo offline, editor gráfico por blocos ou suporte multi-instituição. A experiência de navegação real precisa ser validada em ambiente com dependências instaladas e autenticação configurada.
+**Limitações conhecidas:** ainda não existe exportação PPTX, extração visual de tema PPTX, modo offline completo ou suporte multi-instituição. Há recuperação local de rascunhos, editor visual por blocos, exportação HTML e impressão/PDF pelo navegador. O smoke real autenticado depende de contas QA dedicadas. Consulte docs/F18-release-ratification.md.
 
 
 ## Apresentação com um clique
