@@ -8,4 +8,5 @@ import './styles/f3.css'
 import './styles/f4.css'
 import './styles/f5.css'
 import './styles/f7.css'
+import './styles/feedback.css'
 createRoot(document.getElementById('root')!).render(<React.StrictMode><App/></React.StrictMode>)

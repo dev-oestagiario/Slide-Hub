@@ -11,6 +11,8 @@ import { DEFAULT_SLIDE_THEME, normalizeSlideTheme } from './lib/slideThemes'
 import type { SlideTheme } from './lib/slideThemes'
 import { AppSidebar } from './features/navigation/AppSidebar'
 import { AppTopbar } from './features/navigation/AppTopbar'
+import { FeedbackDialog } from './features/feedback/FeedbackDialog'
+import { checkFeedbackAvailability, sendFeedback } from './features/feedback/sendFeedback'
 import { Dashboard } from './features/dashboard/Dashboard'
 import { CourseOverview } from './features/courses/CourseOverview'
 import { LessonWorkspace } from './features/lessons/LessonWorkspace'
@@ -36,6 +38,7 @@ export default function App(){
   const [loadedUser,setLoadedUser]=useState<string|null>(null)
   const [presentationTemplates,setPresentationTemplates]=useState<PresentationTemplateRecord[]>([])
   const [templateLibraryOpen,setTemplateLibraryOpen]=useState(false)
+  const [feedbackOpen,setFeedbackOpen]=useState(false)
   const [mode,setMode]=useState<'edit'|'article'>('edit'),[presenting,setPresenting]=useState(false)
   const [exporting,setExporting]=useState(false)
   const [create,setCreate]=useState<'discipline'|'module'|'lesson'|null>(null),[newTitle,setNewTitle]=useState(''),[newDesc,setNewDesc]=useState(''),[busy,setBusy]=useState(false),[message,setMessage]=useState('')
@@ -82,7 +85,7 @@ export default function App(){
   }
   useEffect(()=>{
     setLoadedUser(null);setProfile(null);setDisciplines([]);setModules([]);setLessons([]);setTemplates([]);setPresentationTemplates([])
-    setDisciplineId(null);setModuleId(null);setLessonId(null);setTemplateLibraryOpen(false);setThemeStudioOpen(false);setPresenting(false);setExporting(false);setNotes([]);setNoteText('')
+    setDisciplineId(null);setModuleId(null);setLessonId(null);setTemplateLibraryOpen(false);setFeedbackOpen(false);setThemeStudioOpen(false);setPresenting(false);setExporting(false);setNotes([]);setNoteText('')
     if(user)void refresh()
   },[user?.id])
   useEffect(()=>{setMode('edit');setNoteIndex(0);setPreviewPage(0);setExporting(false);setPresenting(false);setNoteText('');recognition.current?.stop();recognition.current=null;setDictating(false)},[lesson?.id,user?.id])
@@ -302,7 +305,7 @@ export default function App(){
     <div className="main-area f1-main-area">
       <AppTopbar discipline={selectedDiscipline} module={selectedModule} lesson={lesson}
         onOpenMenu={()=>setShowSidebar(true)} onHome={goHome}
-        onDiscipline={openDiscipline} onModule={openModule}/>
+        onDiscipline={openDiscipline} onModule={openModule} onFeedback={canWrite?()=>setFeedbackOpen(true):undefined}/>
       <main className="workspace f1-workspace" id="main-content">
         {message && <div className="notice" role="status">
           {message}<button aria-label="Fechar aviso" onClick={()=>setMessage('')}><X size={16}/></button>
@@ -351,6 +354,8 @@ export default function App(){
           />}
       </main>
     </div>
+    {feedbackOpen && canWrite && <FeedbackDialog area={lesson?"editor":templateLibraryOpen?"templates":selectedDiscipline?"discipline":"dashboard"} onClose={()=>setFeedbackOpen(false)} send={sendFeedback} check={checkFeedbackAvailability}/>
+    }
     {templateLibraryOpen && lesson && canEdit && <ModalShell label="Biblioteca de templates"
       onClose={()=>setTemplateLibraryOpen(false)}><TemplateLibrary
         records={presentationTemplates} lessons={ownedLessons} currentLesson={lesson}
