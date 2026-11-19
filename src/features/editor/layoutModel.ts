@@ -7,7 +7,7 @@ export type SlideBlock = {
   markdown: string
   slideIndex: number
 }
-export type BlockRect = { x:number; y:number; w:number; h:number; z:number }
+export type BlockRect = { x:number; y:number; w:number; h:number; z:number; rotation?:number; locked?:true; group?:string }
 export type EditorLayout = { schemaVersion:1; blocks:SlideBlock[]; overrides:Record<string,BlockRect> }
 export type EditorSlide = { key:string; blocks:SlideBlock[]; slide:Slide }
 
@@ -30,7 +30,10 @@ export function normalizeRect(value:unknown):BlockRect|null{
   if(vals.some(v=>typeof v!=='number'||!Number.isFinite(v)))return null
   const w=clamp(r.w as number,.08,1)
   const h=clamp(r.h as number,.05,1)
-  return {x:clamp(r.x as number,0,1-w),y:clamp(r.y as number,0,1-h),w,h,z:Math.round(clamp(r.z as number,0,100))}
+  const rotation=typeof r.rotation==='number'&&Number.isFinite(r.rotation)?((r.rotation%360)+360)%360:0
+  return {x:clamp(r.x as number,0,1-w),y:clamp(r.y as number,0,1-h),w,h,z:Math.round(clamp(r.z as number,0,100)),
+    ...(rotation?{rotation}:{}),...(r.locked===true?{locked:true as const}:{}),
+    ...(typeof r.group==='string'&&/^[a-z0-9-]{8,80}$/i.test(r.group)?{group:r.group}:{})}
 }
 export function normalizeEditorLayout(raw:unknown):EditorLayout{
   const source=object(raw)
@@ -175,7 +178,7 @@ export function layoutsEqual(a:EditorLayout,b:EditorLayout):boolean{
   if(ak.length!==bk.length||ak.some((key,i)=>key!==bk[i]))return false
   return ak.every(key=>{
     const x=a.overrides[key],y=b.overrides[key]
-    return x.x===y.x&&x.y===y.y&&x.w===y.w&&x.h===y.h&&x.z===y.z
+    return x.x===y.x&&x.y===y.y&&x.w===y.w&&x.h===y.h&&x.z===y.z&&x.rotation===y.rotation&&x.locked===y.locked&&x.group===y.group
   })
 }
 export function overflowing(rect:BlockRect):boolean{return rect.x+rect.w>1.001||rect.y+rect.h>1.001}
